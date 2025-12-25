@@ -1,0 +1,27 @@
+{
+  "name": "@warlock.js/scheduler",
+  "version": "1.0.0",
+  "description": "A simple scheduler package to run jobs in scheduled times",
+  "main": "src/index.ts",
+  "dependencies": {
+    "dayjs": "^1.11.19"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warlockjs/scheduler"
+  },
+  "keywords": [
+    "warlock.js",
+    "scheduler",
+    "job",
+    "cron",
+    "time",
+    "date",
+    "interval",
+    "timer",
+    "delay",
+    "timeout"
+  ],
+  "author": "hassanzohdy",
+  "license": "MIT"
+}

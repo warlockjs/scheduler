@@ -1,12 +1,14 @@
 import dayjs, { type Dayjs } from "dayjs";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone.js";
+import utc from "dayjs/plugin/utc.js";
 import { CronParser } from "./cron-parser";
 import type { Day, JobIntervals, JobResult, RetryConfig, TimeType } from "./types";
 
 // Enable timezone support
 dayjs.extend(utc);
 dayjs.extend(timezone);
+
+export type JobCallback = (job: Job) => Promise<any>;
 
 /**
  * Days of week mapping (lowercase for consistency with Day type)
@@ -102,7 +104,7 @@ export class Job {
    */
   public constructor(
     public readonly name: string,
-    private readonly _callback: (job: Job) => Promise<unknown> | unknown,
+    private readonly _callback: JobCallback,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -691,6 +693,6 @@ export class Job {
  * }).daily().at("03:00");
  * ```
  */
-export function job(name: string, callback: (job: Job) => Promise<unknown> | unknown): Job {
+export function job(name: string, callback: JobCallback): Job {
   return new Job(name, callback);
 }

@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import type { Job } from "./job";
+import { Job, JobCallback } from "./job";
 import type { JobResult, SchedulerEvents } from "./types";
 
 /**
@@ -108,6 +108,15 @@ export class Scheduler
   public addJob(job: Job): this {
     this._jobs.push(job);
     return this;
+  }
+
+  /**
+   * Alias to create a new job directly and store it
+   */
+  public newJob(name: string, jobCallback: JobCallback) {
+    const job = new Job(name, jobCallback);
+    this.addJob(job);
+    return job;
   }
 
   /**

@@ -1,6 +1,6 @@
 {
     "name": "@warlock.js/scheduler",
-    "version": "4.0.109",
+    "version": "4.0.110",
     "description": "A simple scheduler package to run jobs in scheduled times",
     "main": "src/index.ts",
     "dependencies": {

@@ -107,6 +107,11 @@ export class Scheduler
    */
   public addJob(job: Job): this {
     this._jobs.push(job);
+
+    if (this.isRunning) {
+      job.prepare();
+    }
+
     return this;
   }
 

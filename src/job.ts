@@ -71,7 +71,7 @@ export class Job {
   /**
    * Timezone for scheduling (defaults to system timezone)
    */
-  private _timezone: string | null = null;
+  private _timezone = "UTC";
 
   /**
    * Cron expression parser (mutually exclusive with interval config)
@@ -151,6 +151,7 @@ export class Job {
    */
   public every(value: number, timeType: TimeType): this {
     this._intervals.every = { type: timeType, value };
+    this._determineNextRun();
     return this;
   }
 
@@ -303,6 +304,7 @@ export class Job {
     this._cronParser = new CronParser(expression);
     // Clear interval config since cron takes precedence
     this._intervals = {};
+    this._determineNextRun();
     return this;
   }
 
@@ -335,6 +337,7 @@ export class Job {
     }
 
     this._intervals.day = day;
+    this._determineNextRun();
     return this;
   }
 
@@ -357,6 +360,7 @@ export class Job {
     }
 
     this._intervals.time = time;
+    this._determineNextRun();
     return this;
   }
 
@@ -428,6 +432,7 @@ export class Job {
    */
   public inTimezone(tz: string): this {
     this._timezone = tz;
+    this._determineNextRun();
     return this;
   }
 

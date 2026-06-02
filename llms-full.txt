@@ -1,0 +1,888 @@
+# Warlock Scheduler — full skills
+
+> Package: `@warlock.js/scheduler`
+
+> Generated artifact. Concatenates every SKILL.md and reference file under `@warlock.js/scheduler/skills/`. Re-run `node scripts/generate-llms.mjs` after any change.
+
+## configure-retry-and-overlap  `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`
+
+---
+name: configure-retry-and-overlap
+description: 'Configure `.retry(maxRetries, delay?, backoffMultiplier?)` for fixed / exponential backoff and `.preventOverlap()` for external-invocation safety. Triggers: `.retry`, `.preventOverlap`, `maxRetries`, `backoffMultiplier`, `JobResult.retries`, `job:error`, `job:skip`; "how do I retry a failed job", "exponential backoff for scheduled job", "prevent concurrent job runs", "stop firing after N consecutive failures"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: events / shutdown — `@warlock.js/scheduler/observe-scheduler/SKILL.md`; building the schedule itself — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; competing libs `p-retry`, `async-retry`, `bullmq`.'
+---
+
+# Retry, backoff, and overlap
+
+Two independent execution-control concerns on a single `Job`. They compose cleanly.
+
+## `.retry(maxRetries, delay?, backoffMultiplier?)`
+
+```ts
+job("send-report", sendReport)
+  .daily()
+  .at("08:00")
+  .retry(3);                  // 3 retries, 1000ms apart (default delay)
+
+job("sync", syncInventory)
+  .everyHour()
+  .retry(5, 2000);             // 5 retries, 2000ms each
+
+job("queue", processQueue)
+  .everyMinutes(10)
+  .retry(5, 1000, 2);          // exponential: 1s → 2s → 4s → 8s → 16s
+```
+
+**Signature:** `retry(maxRetries: number, delay = 1000, backoffMultiplier?: number): this`
+
+**Formula:** delay before attempt `N+1` = `delay × backoffMultiplier^(N-1)`. Without a multiplier, all retries wait `delay` ms.
+
+**Validation.** Throws at definition time on negative `maxRetries`, negative `delay`, or zero/negative `backoffMultiplier`. `retry(0)` is valid — means "no retries, single attempt."
+
+## Retry count surfaces in `JobResult`
+
+```ts
+scheduler.on("job:complete", (name, result) => {
+  if (result.retries && result.retries > 0) {
+    log.warn({ name, retries: result.retries }, "succeeded after retries");
+  }
+});
+
+scheduler.on("job:error", (name, error) => {
+  // Fires once, AFTER all retries are exhausted.
+  log.error({ name, error }, "failed permanently");
+});
+```
+
+`JobResult.retries`:
+- On **success**: the number of failed attempts before the eventual success (0 if first attempt succeeded).
+- On **failure**: equals the configured `maxRetries` (all of them were used).
+
+## After permanent failure — `nextRun` advances normally
+
+This is load-bearing: a job that exhausts every retry and still throws does **not** re-fire on the next tick. The scheduler:
+
+1. Emits `job:error` once with the final error.
+2. Advances `nextRun` by the job's interval, same as success.
+
+Both branches go through the same `finally`-block path in `Job.run()`. There is no "stuck on retry" mode.
+
+```ts
+// Fires every 10 minutes, retries 3 times per fire.
+// If the 10:00 run exhausts all retries, next run is at 10:10. NOT at 10:00:00.001.
+job("flaky", fn).everyMinutes(10).retry(3, 1000);
+```
+
+To **stop** firing after N consecutive failures, do it in user code:
+
+```ts
+let consecutiveFailures = 0;
+scheduler.on("job:error", name => {
+  if (name !== "flaky") return;
+  consecutiveFailures++;
+  if (consecutiveFailures >= 5) {
+    scheduler.removeJob("flaky");
+    alert.critical("flaky disabled after 5 failures");
+  }
+});
+scheduler.on("job:complete", name => {
+  if (name === "flaky") consecutiveFailures = 0;
+});
+```
+
+## `.preventOverlap(skip = true)`
+
+Tells the scheduler to skip a tick if the job is already running.
+
+```ts
+job("queue", processQueue)
+  .everyMinutes(5)
+  .preventOverlap();
+```
+
+**Important nuance.** The scheduler awaits each tick's jobs before scheduling the next tick — so **concurrent same-job runs from the scheduler's own loop are structurally impossible**, regardless of `preventOverlap()`. Where it actually matters: jobs whose callbacks ALSO get invoked outside the scheduler.
+
+Real-world shapes that benefit:
+
+```ts
+// 1) Boot-time recovery sweep before normal scheduling.
+const queueJob = job("queue", processQueueOnce).everyMinutes(5).preventOverlap();
+scheduler.addJob(queueJob);
+queueJob.run().catch(err => log.error({ err }, "boot sweep failed"));
+scheduler.start();
+
+// 2) Admin-triggered manual re-run from a dashboard endpoint.
+app.post("/admin/jobs/:name/run", async (req, res) => {
+  const j = scheduler.getJob(req.params.name);
+  await j?.run();
+  res.sendStatus(204);
+});
+
+// 3) Multiple scheduler instances pointed at the same Job (rare).
+```
+
+If a tick lands while one of these external runs is mid-flight:
+- Scheduler emits `job:skip` with reason `"Job is already running"`
+- The tick proceeds without re-entering the job
+
+For a single-process app where the callback is only ever invoked via the scheduler, `preventOverlap()` is a no-op — but it's free, defensive documentation. Keep it on for any job that touches shared state.
+
+## Combining retry + preventOverlap
+
+They compose cleanly. Retry happens WITHIN one fire — if all retries fail, the tick ends and `nextRun` advances. `preventOverlap` matters only between fires.
+
+```ts
+job("long-flaky", processQueue)
+  .everyMinutes(5)
+  .preventOverlap()
+  .retry(3, 1000, 2);   // up to 1 + 2 + 4 = 7 s of retry delay per fire
+```
+
+If retries push the total work past the next interval, `preventOverlap()` ensures the next scheduled tick skips instead of stacking.
+
+## See also
+
+- [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) — full event reference, `JobResult` shape, lifecycle
+- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — the scheduling methods these compose with
+
+
+## observe-scheduler  `@warlock.js/scheduler/observe-scheduler/SKILL.md`
+
+---
+name: observe-scheduler
+description: 'Subscribe to scheduler lifecycle and job events for logging / metrics / alerting / graceful shutdown — seven typed `SchedulerEvents`, `JobResult` payload, `start()` / `stop()` / `shutdown()`. Triggers: `scheduler.on`, `scheduler.shutdown`, `JobResult`, `job:complete`, `job:error`, `scheduler:started`, `scheduler.getJob`; "graceful SIGTERM shutdown", "did this job run", "scheduler metrics and alerts", "subscribe to job events"; typical import `import { scheduler, type JobResult } from "@warlock.js/scheduler"`. Skip: retry / overlap — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; building schedules — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; native `EventEmitter`, `process.on`.'
+---
+
+# Observability and lifecycle
+
+The `Scheduler` extends Node's `EventEmitter` with a fully-typed surface. Wire listeners before calling `.start()`.
+
+## All seven events
+
+```ts
+type SchedulerEvents = {
+  "job:start":         [jobName: string];
+  "job:complete":      [jobName: string, result: JobResult];
+  "job:error":         [jobName: string, error: unknown];
+  "job:skip":          [jobName: string, reason: string];
+  "scheduler:started": [];
+  "scheduler:stopped": [];
+  "scheduler:tick":    [timestamp: Date];
+};
+```
+
+| Event                | When it fires                                                                          |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| `scheduler:started`  | Once, after `.start()` enters the tick loop                                            |
+| `scheduler:stopped`  | When `.stop()` halts the loop. Not emitted if `.stop()` was a no-op (never started)    |
+| `scheduler:tick`     | Every tick — once per `runEvery()` interval (default 1 s). Keep handlers lightweight.  |
+| `job:start`          | Just before a job's callback is first invoked (NOT once per retry)                     |
+| `job:complete`       | When a job finishes successfully (possibly after retries)                              |
+| `job:error`          | When a job exhausts all retries and the final attempt still throws                     |
+| `job:skip`           | When a tick finds the job already running (see retry-and-overlap for when this occurs) |
+
+**Contract for retries.** `job:start` and `job:complete`/`job:error` fire **once per fire**, not once per retry attempt. The retry count surfaces inside the `JobResult` passed to `job:complete`, or as `result.retries === maxRetries` on the failure path.
+
+## `JobResult` shape
+
+```ts
+type JobResult = {
+  success: boolean;
+  duration: number;    // milliseconds, end-to-end including retry waits
+  error?: unknown;     // present when success === false
+  retries?: number;    // attempts that failed before the final outcome
+};
+```
+
+`duration` is wall-clock from the first attempt's start to the final settlement — useful for both p50 metrics and capacity planning.
+
+## Subscribing
+
+```ts
+import type { JobResult } from "@warlock.js/scheduler";
+import { scheduler } from "@warlock.js/scheduler";
+
+scheduler.on("job:start",    name           => log.debug({ name }, "job start"));
+scheduler.on("job:complete", (name, result: JobResult) => {
+  log.info({ name, duration: result.duration, retries: result.retries }, "job complete");
+});
+scheduler.on("job:error",    (name, error)  => log.error({ name, error }, "job failed"));
+scheduler.on("job:skip",     (name, reason) => log.warn({ name, reason }, "job skipped"));
+```
+
+`.on()`, `.once()`, `.off()` are all type-narrowed via `SchedulerEvents`.
+
+## Lifecycle methods
+
+### `.start()`
+
+Prepares every registered job (computes initial `nextRun`) and enters the tick loop. Emits `scheduler:started`.
+
+Throws if:
+- already running (`"Scheduler is already running."`)
+- zero jobs registered (`"Cannot start scheduler with no jobs."`)
+
+### `.stop()`
+
+Immediately clears the next-tick timer. Does NOT wait for jobs currently mid-execution. Emits `scheduler:stopped`. **No-op if not running** — calling `.stop()` on a never-started or already-stopped scheduler is safe and silent.
+
+### `.shutdown(timeout = 30000)`
+
+Graceful equivalent of `.stop()`:
+
+1. Marks the scheduler as shutting down (no new ticks scheduled).
+2. Calls `.stop()` internally (so `scheduler:stopped` fires).
+3. Awaits every currently-running job's `waitForCompletion()`, capped by `timeout`.
+4. Resolves either when all jobs finish or when the timeout elapses.
+
+```ts
+process.on("SIGTERM", async () => {
+  await scheduler.shutdown(30_000);
+  process.exit(0);
+});
+```
+
+The timeout is a HARD cap — jobs still running after it are abandoned (their promises keep resolving in the background, but the scheduler doesn't await them). The package does not currently support per-job timeouts or `AbortSignal` cancellation.
+
+## Production observer pattern
+
+Wire all observers before `start()`, in one place:
+
+```ts
+import { scheduler } from "@warlock.js/scheduler";
+import { logger } from "./logger";
+import { metrics } from "./metrics";
+import { alerts } from "./alerts";
+
+scheduler.on("job:start", name => metrics.increment(`job.start.${name}`));
+
+scheduler.on("job:complete", (name, result) => {
+  metrics.increment(`job.success.${name}`);
+  metrics.timing(`job.duration.${name}`, result.duration);
+  if (result.retries) metrics.increment(`job.retries.${name}`, result.retries);
+});
+
+scheduler.on("job:error", (name, error) => {
+  logger.error({ name, error }, "Job failed permanently");
+  alerts.critical(`Scheduler job "${name}" failed`, error);
+});
+
+scheduler.on("job:skip", (name, reason) => {
+  logger.warn({ name, reason }, "Job skipped — likely external invocation in flight");
+});
+
+scheduler.on("scheduler:started", () => logger.info("scheduler up"));
+scheduler.on("scheduler:stopped", () => logger.info("scheduler down"));
+
+// Register jobs, then:
+scheduler.start();
+```
+
+## Inspection at runtime
+
+```ts
+scheduler.isRunning;             // boolean
+scheduler.jobCount;              // number of registered jobs
+scheduler.list();                // readonly Job[]
+scheduler.getJob("name");        // Job | undefined
+```
+
+And on each `Job`:
+
+```ts
+job.nextRun;                     // Dayjs | null
+job.lastRun;                     // Dayjs | null — success OR failure
+job.isRunning;                   // boolean
+job.intervals;                   // readonly schedule config
+job.cronExpression;              // string | null
+```
+
+## See also
+
+- [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md) — what triggers each event in detail
+- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — the methods that mutate the state these getters expose
+
+
+## overview  `@warlock.js/scheduler/overview/SKILL.md`
+
+---
+name: overview
+description: 'Front-door orientation for `@warlock.js/scheduler` — cron-like job scheduling with fluent schedule API (`.daily().at()`, `.weekly().on()`, `.cron("...")`), retry with backoff, overlap prevention, IANA timezone pinning, and seven typed lifecycle events. UTC default; opt into local time per job. TRIGGER when: code imports anything from `@warlock.js/scheduler`; user asks "what does @warlock.js/scheduler do", "compare with node-cron / agenda / bull", "schedule a cron job in Node", "how do I prevent overlapping runs", "how do I retry a failed job", "what timezone does the scheduler use"; package.json adds `@warlock.js/scheduler`. Skip: specific task already known — load the matching task skill directly (`scheduler-basics`, `schedule-fluently`, `schedule-with-cron`, `configure-retry-and-overlap`, `pin-schedule-timezone`, `observe-scheduler`); ad-hoc `setTimeout` / `setInterval` for one-off delays (no cron / retry / observability needed).'
+---
+
+# `@warlock.js/scheduler` — overview
+
+Production-ready job scheduler with a cron engine, fluent schedule builder, retry-with-backoff, overlap prevention, IANA timezone pinning, and seven typed lifecycle events. Two primitives — `job(name, fn)` and the `scheduler` singleton — that compose into everything else.
+
+## When to reach for it
+
+- You have **recurring work** in a Node service (cleanups, reports, syncs, polling) and want it scheduled inside the app process — no external cron, no docker-cron sidecar.
+- You'd reach for **node-cron** or **agenda** but want a typed fluent API, retry-with-backoff, overlap prevention, and a working observability story built in — without bringing Redis (agenda) or hand-rolling retry yourself (node-cron).
+- You're inside a `@warlock.js/*` project — the framework already uses this for built-in maintenance jobs (token cleanup, etc.).
+
+Skip if you need a **distributed** job queue with persistence, retries across processes, and worker pools — reach for **BullMQ** or **Temporal**. This package runs jobs **in-process**; if the process dies before the next tick, the schedule resumes from now, not from the missed fire time.
+
+## The mental model in one paragraph
+
+Define a job with `job("name", async () => { ... })`. Attach a schedule via the fluent API (`.daily().at("03:00")`) or a cron string (`.cron("0 3 * * *")`). Optionally pin a timezone (`.inTimezone("America/New_York")`), prevent concurrent runs (`.preventOverlap()`), and configure retries (`.retry(3, 1000)`). Register the job with `scheduler.addJob(job)`, call `scheduler.start()`, and listen on the seven lifecycle events (`job:start` / `complete` / `error` / `skip`, `scheduler:started` / `stopped` / `tick`) for logging, metrics, and alerting. `scheduler.shutdown()` drains in-flight jobs before exit.
+
+## Skills index
+
+Six task skills cover the full surface. Most callers only need `scheduler-basics` + `schedule-fluently` + `observe-scheduler`.
+
+### Foundations
+
+#### [`scheduler-basics`](@warlock.js/scheduler/scheduler-basics/SKILL.md)
+Start here. The `job(name, fn)` factory, the `scheduler` singleton, the 2-primitive surface, UTC default, why the API is factory-first.
+
+### Scheduling
+
+#### [`schedule-fluently`](@warlock.js/scheduler/schedule-fluently/SKILL.md)
+Build schedules without writing cron: `.everyMinutes(N)`, `.daily().at("03:00")`, `.weekly().on("monday")`, `.monthly()`, `.beginOf("month")`, `.endOf("year")`, and friends. Reach for this 80% of the time.
+
+#### [`schedule-with-cron`](@warlock.js/scheduler/schedule-with-cron/SKILL.md)
+Drop down to `.cron("0 9 * * 1-5")` when the fluent API can't express it (Vixie OR semantics for DOM/DOW, complex multi-value lists). Includes `parseCron()` for previewing next-run times before deploy.
+
+### Production concerns
+
+#### [`configure-retry-and-overlap`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md)
+`.retry(maxRetries, delay?, backoffMultiplier?)` for fixed or exponential backoff; `.preventOverlap()` so a slow run never collides with the next tick. Reach for both anytime a job calls external services.
+
+#### [`pin-schedule-timezone`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md)
+`.inTimezone("America/New_York")` pins wall-clock fire times across DST and across servers. The default is UTC — if your job description includes "9 AM," you almost certainly want this skill.
+
+### Observability + shutdown
+
+#### [`observe-scheduler`](@warlock.js/scheduler/observe-scheduler/SKILL.md)
+The seven typed `SchedulerEvents` (`job:start` / `complete` / `error` / `skip`, `scheduler:started` / `stopped` / `tick`), the `JobResult` payload, `start()` / `stop()` / `shutdown()`. Wire this for logging, metrics, alerting, and graceful SIGTERM handling.
+
+## Quick taste
+
+```ts
+import { Scheduler, job } from "@warlock.js/scheduler";
+
+const scheduler = new Scheduler();
+
+scheduler.on("job:error", (name, error) => {
+  console.error(`${name} failed:`, error);
+});
+
+scheduler.addJob(
+  job("cleanup", async () => {
+    await cleanupExpiredTokens();
+  })
+    .daily()
+    .at("03:00")
+    .inTimezone("America/New_York")
+    .preventOverlap()
+    .retry(3, 1000),
+);
+
+scheduler.addJob(
+  job("reports", sendReports).cron("0 9 * * 1-5"), // 9 AM weekdays
+);
+
+scheduler.start();
+process.on("SIGTERM", () => scheduler.shutdown());
+```
+
+## What this package deliberately doesn't do
+
+- **Distributed scheduling across processes.** Jobs run in the calling process. For multi-instance deployments, either run the scheduler on one instance (with a leader election) or reach for BullMQ / Temporal.
+- **Persistent job state across restarts.** A missed fire while the process was down is missed — it doesn't catch up. For exactly-once-eventually semantics, use a queue.
+- **Job priority queues or fan-out.** One job = one function. For fan-out, your job dispatches to a queue.
+- **Cron-syntax extensions** beyond the standard 5-field form (no `@daily` macros, no seconds field). Use the fluent API for human-readable schedules instead.
+
+## See also
+
+- [`@warlock.js/core/overview/SKILL.md`](@warlock.js/core/overview/SKILL.md) — the parent framework that scheduled jobs typically run alongside.
+- `mongez-agent-kit-authoring-skills` (load via agent-kit sync) — how this `overview/SKILL.md` becomes the front-door skill in `.claude/skills/warlock-js-scheduler-overview/`. Every cross-link above uses the `@warlock.js/scheduler/<skill>/SKILL.md` name form so it survives that flattening.
+
+
+## pin-schedule-timezone  `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`
+
+---
+name: pin-schedule-timezone
+description: 'Pin a job to a specific IANA timezone via `.inTimezone(zone)` so its wall-clock fire time stays correct regardless of server location / DST. Triggers: `.inTimezone`, `America/New_York`, `Europe/Berlin`, `Asia/Tokyo`, `NODE_ICU_DATA`; "schedule job in a timezone", "DST drift on non-UTC server", "multi-region fan-out scheduling", "fire at 9am ET regardless of server"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: fluent interval methods — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; cron syntax — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; competing libs `dayjs-timezone`, `luxon`, `date-fns-tz`.'
+---
+
+# Per-job timezones
+
+Every `Job` has its own timezone. The default is **UTC** — `.daily().at("09:00")` fires at 09:00 UTC, regardless of the server's locale or system timezone. Pin to wall-clock time with `.inTimezone(IANA string)`.
+
+## Basic usage
+
+```ts
+job("morning-digest", sendDailyDigest)
+  .daily()
+  .at("08:00")
+  .inTimezone("America/New_York");   // 8 AM ET, not 8 AM UTC
+```
+
+`.inTimezone()` is chainable — typically placed after the time/day methods.
+
+## Why the default is UTC
+
+A server runs wherever ops put it (Frankfurt, Virginia, GCP us-central1, …). System-local time is unpredictable; UTC is stable. The framework picks the stable default so that `daily().at("09:00")` without further config is reproducible across deployments. Pin to wall-clock time when business hours actually matter.
+
+## Multi-region fan-out
+
+Same logical task, three regions:
+
+```ts
+import { scheduler, job } from "@warlock.js/scheduler";
+
+const regions = [
+  { name: "us-east",   tz: "America/New_York" },
+  { name: "eu-west",   tz: "Europe/Berlin" },
+  { name: "asia",      tz: "Asia/Tokyo" },
+];
+
+for (const { name, tz } of regions) {
+  scheduler.addJob(
+    job(`morning-report-${name}`, () => sendReport(name))
+      .daily()
+      .at("09:00")
+      .inTimezone(tz)
+  );
+}
+
+scheduler.start();
+```
+
+Three separate `Job` instances, three separate `nextRun` calculations. Each fires once per day at its region's 09:00.
+
+## DST is automatic
+
+dayjs handles transitions correctly. A daily 09:00 job in `America/New_York` shifts between 13:00 UTC (EST winter) and 14:00 UTC (EDT summer) without intervention. The same job in a fixed-offset region (`Asia/Tokyo`, `Africa/Algiers`) stays at a constant UTC offset.
+
+## Common IANA strings
+
+| Region              | TZ string                   |
+| ------------------- | --------------------------- |
+| UTC                 | `UTC`                       |
+| US Eastern          | `America/New_York`          |
+| US Central          | `America/Chicago`           |
+| US Mountain         | `America/Denver`            |
+| US Pacific          | `America/Los_Angeles`       |
+| UK / Ireland        | `Europe/London`             |
+| Central Europe      | `Europe/Berlin`             |
+| Eastern Europe      | `Europe/Kyiv`               |
+| India               | `Asia/Kolkata`              |
+| Japan               | `Asia/Tokyo`                |
+| Australia (Sydney)  | `Australia/Sydney`          |
+| Egypt               | `Africa/Cairo`              |
+
+Full list: [IANA Time Zone Database](https://www.iana.org/time-zones).
+
+## Interaction with `at()`, `on()`, cron
+
+The timezone applies to every interpretation of "now" and every constraint:
+
+```ts
+job("monday-standup", task)
+  .weekly()
+  .on("monday")
+  .at("09:00")
+  .inTimezone("Europe/Berlin");
+// "Monday in Berlin local time" + "09:00 Berlin local time"
+// — automatically shifts CET ↔ CEST as DST changes.
+
+job("nightly-cron", task)
+  .cron("0 3 * * *")
+  .inTimezone("Asia/Tokyo");
+// "0 3 * * *" interpreted in Tokyo local time → 03:00 JST = 18:00 UTC.
+```
+
+## Validation
+
+`.inTimezone()` stores the string as-is, then immediately recomputes `nextRun` — and that recompute calls dayjs with the zone. An invalid IANA string makes dayjs throw a `RangeError: Invalid time zone specified` **synchronously, at that point in the chain**:
+
+```ts
+// Throws right here — the .inTimezone() call recomputes nextRun, which
+// hits dayjs().tz("Asia/Whatever") and raises RangeError immediately.
+const j = job("t", task).daily().at("09:00").inTimezone("Asia/Whatever");
+```
+
+A valid zone computes `nextRun` on the spot (non-null after the chain). So a typo fails fast at definition time, not at the first tick — no special unit test needed to surface it.
+
+## Server-side caveats
+
+Node ships full ICU on most platforms, so all IANA zones work out of the box. If you're running a small-ICU build (alpine without full ICU, or old Node versions with `--icu=small`), only a limited set of zones is recognized. Set the `NODE_ICU_DATA` env var or use the `full-icu` package in that case.
+
+## See also
+
+- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — `at()`, `on()`, `daily()`, etc.
+- [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md) — cron schedules are timezone-aware too
+- [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) — `job.nextRun.toISOString()` always renders in UTC; format with `.tz(zone)` to see local time
+
+
+## schedule-fluently  `@warlock.js/scheduler/schedule-fluently/SKILL.md`
+
+---
+name: schedule-fluently
+description: 'Build a job schedule via `every*` / `daily` / `weekly` / `monthly` / `at` / `on` / `beginOf` / `endOf`. Triggers: `.everyMinutes`, `.daily`, `.weekly`, `.monthly`, `.at`, `.on`, `.every`, `.beginOf`, `.endOf`, `.twiceDaily`, `scheduler.newJob`; "run every 5 minutes", "daily at 3am", "monday standup", "first of every month", "last day of month"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: cron — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; retry — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; competing `node-cron`, `node-schedule`, `agenda`; native `setInterval`.'
+---
+
+# Fluent scheduling API
+
+Chainable methods on a `Job` instance. Each method returns `this` for chaining; each call recomputes `job.nextRun` on the spot.
+
+## Preset intervals
+
+| Method               | Equivalent of            | Notes                          |
+| -------------------- | ------------------------ | ------------------------------ |
+| `.everySecond()`     | `.every(1, "second")`    | High frequency — use sparingly |
+| `.everySeconds(N)`   | `.every(N, "second")`    |                                |
+| `.everyMinute()`     | `.every(1, "minute")`    |                                |
+| `.everyMinutes(N)`   | `.every(N, "minute")`    |                                |
+| `.everyHour()`       | `.every(1, "hour")`      |                                |
+| `.everyHours(N)`     | `.every(N, "hour")`      |                                |
+| `.everyDay()`        | `.every(1, "day")`       | Same as `.daily()`             |
+| `.daily()`           | `.every(1, "day")`       |                                |
+| `.twiceDaily()`      | `.every(12, "hour")`     | Every 12 hours                 |
+| `.everyWeek()`       | `.every(1, "week")`      | Same as `.weekly()`            |
+| `.weekly()`          | `.every(1, "week")`      |                                |
+| `.everyMonth()`      | `.every(1, "month")`     | Same as `.monthly()`           |
+| `.monthly()`         | `.every(1, "month")`     |                                |
+| `.everyYear()`       | `.every(1, "year")`      | Same as `.yearly()`            |
+| `.yearly()`          | `.every(1, "year")`      |                                |
+| `.always()`          | `.every(1, "minute")`    | Continuous "tick" jobs         |
+
+## Custom intervals — `.every(value, unit)`
+
+```ts
+job("t", task).every(5, "minute");
+job("t", task).every(2, "hour");
+job("t", task).every(3, "day");
+```
+
+Units: `"second" | "minute" | "hour" | "day" | "week" | "month" | "year"`.
+
+**Validation.** `every(value, unit)` throws at definition time if `value` is `0`, negative, `NaN`, or `Infinity`. This guards against the misconfigured-interval class of bugs that would otherwise spin the scheduler.
+
+## Target a specific time — `.at("HH:mm" | "HH:mm:ss")`
+
+```ts
+job("nightly", fn).daily().at("03:00");
+job("midday",  fn).daily().at("12:30:15");
+```
+
+**Validation.** `.at()` throws if the format is malformed (`"foo"`, `"9-30"`), or any component is out of range (hour > 23, minute > 59, second > 59).
+
+## Target a specific day — `.on(day)`
+
+Day-of-week (string) or day-of-month (number 1–31):
+
+```ts
+job("monday-standup", task).weekly().on("monday");
+job("mid-month-sync", task).monthly().on(15);
+job("end-of-month",   task).monthly().on(31);    // see beginOf/endOf for the right way
+```
+
+Valid day-of-week strings: `"sunday"`, `"monday"`, `"tuesday"`, `"wednesday"`, `"thursday"`, `"friday"`, `"saturday"`.
+
+**Validation.** Numeric `on(N)` throws if `N < 1 || N > 31`.
+
+**Gotcha.** `monthly().on(31)` clamps to the actual month length in dayjs — February runs are unpredictable. Use `endOf("month")` for "last day" semantics instead.
+
+## Boundary shortcuts — `.beginOf(type)` / `.endOf(type)`
+
+Both accept `"day" | "month" | "year"`.
+
+| Method               | Fires at                                          |
+| -------------------- | ------------------------------------------------- |
+| `beginOf("day")`     | 00:00 every day                                   |
+| `endOf("day")`       | 23:59 every day                                   |
+| `beginOf("month")`   | 1st of every month at 00:00                       |
+| `endOf("month")`     | Last day of every month at 23:59 (**dynamic**)    |
+| `beginOf("year")`    | January 1 at 00:00 every year                     |
+| `endOf("year")`      | December 31 at 23:59 every year                   |
+
+**`endOf("month")` is dynamic** — recomputes per cycle, so a job defined in February (28 days) still fires on March 31, April 30, etc. Leap years pick Feb 29 correctly.
+
+**`beginOf("year")` / `endOf("year")` lock the month** — always Jan 1 / Dec 31, never "1st/31st of whatever month the job was defined in."
+
+## Cron is an alternative, not an addition
+
+`.cron("…")` clears any prior interval/`at`/`on`/`beginOf`/`endOf` config — and vice versa. They're mutually exclusive. See [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md).
+
+## Chaining order doesn't matter (for the most part)
+
+Every fluent method recomputes `nextRun` at the end. Putting `.at()` before `.daily()` produces the same schedule as putting `.daily()` before `.at()` — but for readability, the conventional order is **interval → day → time → timezone → execution options**:
+
+```ts
+job("good", fn)
+  .weekly()              // interval
+  .on("monday")          // day
+  .at("09:00")           // time
+  .inTimezone("UTC")     // timezone
+  .preventOverlap()      // execution
+  .retry(3, 1000);       // execution
+```
+
+## Inline registration — `scheduler.newJob()`
+
+For one-liners, the scheduler exposes a `newJob()` shortcut that creates, registers, and returns the job in one call:
+
+```ts
+scheduler
+  .newJob("cleanup", cleanupFn)
+  .daily()
+  .at("03:00");
+```
+
+To register several pre-built jobs at once, `scheduler.addJobs([...])` is the batch counterpart to `addJob` (both are chainable and preserve insertion order):
+
+```ts
+scheduler.addJobs([
+  job("cleanup", cleanupFn).daily().at("03:00"),
+  job("reports", sendReports).weekly().on("monday").at("09:00"),
+]);
+```
+
+If the scheduler is already running, every job added via `addJob` / `addJobs` is prepared on the spot (its `nextRun` is computed) so it fires on the next tick.
+
+## Reading state at runtime
+
+```ts
+const j = scheduler.getJob("nightly-cleanup");
+
+j?.nextRun?.toISOString();   // next scheduled run (Dayjs)
+j?.lastRun?.toISOString();   // last attempt — success OR failure
+j?.isRunning;                // currently executing?
+j?.intervals;                // { every?, day?, dayOfMonthMode?, month?, time? } (readonly)
+j?.cronExpression;           // null if using fluent API
+```
+
+## See also
+
+- [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md) — when the fluent API isn't enough
+- [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md) — `.retry()` and `.preventOverlap()` on the same job
+- [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md) — `.inTimezone()`
+
+
+## schedule-with-cron  `@warlock.js/scheduler/schedule-with-cron/SKILL.md`
+
+---
+name: schedule-with-cron
+description: 'Write `.cron(''…'')` expressions — 5-field syntax, operators (`*` `,` `-` `/`), Vixie OR semantics for DOM / DOW, `parseCron()` preview utility. Triggers: `.cron`, `parseCron`, `CronParser`, `*/5 * * * *`, `0 9 * * 1-5`; "write a cron expression", "every weekday at 9am cron", "preview next cron run", "migrate crontab(5) entry"; typical import `import { parseCron } from "@warlock.js/scheduler"`. Skip: human-readable schedules — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; competing libs `node-cron`, `cron`, `croner`, `cronstrue`.'
+---
+
+# Cron expressions
+
+The escape hatch when the fluent API can't express a schedule. Activating `.cron()` clears any prior fluent config — the two are mutually exclusive.
+
+## 5-field syntax
+
+```
+┌───────────── minute        (0-59)
+│ ┌───────────── hour          (0-23)
+│ │ ┌───────────── day-of-month (1-31)
+│ │ │ ┌───────────── month        (1-12)
+│ │ │ │ ┌───────────── day-of-week  (0-6, Sunday = 0)
+│ │ │ │ │
+* * * * *
+```
+
+**Note:** Sunday is `0` only. Some cron dialects also accept `7` for Sunday — this parser does NOT.
+
+## Operators
+
+| Syntax    | Meaning                       | Example          |
+| --------- | ----------------------------- | ---------------- |
+| `*`       | Any value (full range)        | `* * * * *`      |
+| `5`       | Single value                  | `30 14 * * *`    |
+| `1,3,5`   | List                          | `0,30 * * * *`   |
+| `1-5`     | Inclusive range               | `0 9-17 * * *`   |
+| `*/N`     | Step over the wildcard        | `*/5 * * * *`    |
+| `A-B/N`   | Step over a range             | `0 1-10/2 * * *` |
+
+**Not supported (yet):** named tokens (`MON-FRI`, `JAN-DEC`), special strings (`@daily`, `@hourly`, `@reboot`), seconds field (6-field), Quartz modifiers (`L`, `W`, `#`).
+
+## Day-of-month + day-of-week — Vixie OR semantics
+
+When **both** `dayOfMonth` AND `dayOfWeek` are restricted (neither is `*`), the date matches if **either** constraint matches. When one is `*` and the other is restricted, only the restricted one matters.
+
+```ts
+// "1st of month OR any Monday" — fires on the 1st even if not a Monday,
+// AND fires on any Monday even if not the 1st.
+job("digest", sendDigest).cron("0 0 1 * 1");
+
+// "15th of month" — DOW is *, so only DOM applies. Fires only on the 15th.
+job("midmonth", task).cron("0 0 15 * *");
+
+// "Every Monday" — DOM is *, so only DOW applies. Fires only on Mondays.
+job("monday-only", task).cron("0 0 * * 1");
+```
+
+This matches Vixie cron (the de facto standard on Unix). Migrating an existing cron table from `crontab(5)` should "just work" semantically.
+
+## Common recipes
+
+```ts
+// Every 5 minutes
+.cron("*/5 * * * *")
+
+// Top of every hour
+.cron("0 * * * *")
+
+// Every weekday at 9 AM
+.cron("0 9 * * 1-5")
+
+// 2:30 PM on the 15th of every month
+.cron("30 14 15 * *")
+
+// Every 2 hours, on the hour
+.cron("0 */2 * * *")
+
+// First day of each month at midnight
+.cron("0 0 1 * *")
+```
+
+## Validation
+
+`new CronParser(expr)` and `.cron(expr)` both throw at definition time on:
+
+- Wrong field count (must be exactly 5)
+- Non-numeric values, out-of-range values, inverted ranges (`5-1`)
+- Step `<= 0`, non-numeric step
+- Impossible day-of-month / month combinations — a date that can never occur, e.g. `0 0 30 2 *` (Feb 30) or `0 0 31 4 *` (April has 30 days). Rejected with an `Impossible cron expression` error.
+
+```ts
+new CronParser("0 0 30 2 *"); // throws: Impossible cron expression — Feb never has a 30th
+new CronParser("0 0 31 4 *"); // throws: April has only 30 days
+```
+
+**Leap years and the OR escape hatch.** `0 0 29 2 *` (Feb 29) is **accepted** — it occurs in leap years. And when day-of-week is also restricted, Vixie OR semantics keep the schedule alive via the weekday path, so the combo is never rejected: `0 0 30 2 1` (Feb 30 OR any Monday) parses fine and fires on Mondays.
+
+Throws are eager — bad expressions fail fast at construction, not at first tick.
+
+## Standalone preview — `parseCron()`
+
+The `CronParser` class is exported as a utility for ad-hoc next-run calculation, separate from any job:
+
+```ts
+import { parseCron } from "@warlock.js/scheduler";
+import dayjs from "dayjs";
+
+const parser = parseCron("0 9 * * 1-5");
+
+parser.nextRun().toISOString();              // next weekday at 9 AM
+parser.nextRun(dayjs("2026-12-31")).format(); // from a specific anchor
+
+parser.matches(dayjs());                     // is "now" a fire moment?
+
+parser.fields;                                // parsed numeric arrays
+parser.expression;                            // original string
+```
+
+Impossible expressions are rejected eagerly at construction (see Validation), so `nextRun(from?)` always resolves a satisfiable expression within a year — its one-year scan bound is just a defensive backstop, never the path that catches a bad expression.
+
+## Timezone interaction
+
+If the job has `.inTimezone(tz)`, the cron parser receives a timezone-aware `dayjs` object — so `0 9 * * *` with `.inTimezone("Asia/Tokyo")` fires at 09:00 JST. See [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md).
+
+## See also
+
+- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — the higher-level alternative for human-readable schedules
+- [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md) — pinning a cron schedule to a wall-clock timezone
+
+
+## scheduler-basics  `@warlock.js/scheduler/scheduler-basics/SKILL.md`
+
+---
+name: scheduler-basics
+description: 'Start with `@warlock.js/scheduler` — `job()` factory + `scheduler` singleton, 2-primitive surface, UTC default, factory-first API. Triggers: `job`, `scheduler`, `scheduler.addJob`, `scheduler.start`, `scheduler.newJob`; "schedule a recurring job", "how to use warlock scheduler", "where do I start"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: fluent — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; cron — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; retry — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; events — `@warlock.js/scheduler/observe-scheduler/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; competing `bullmq`, `agenda`, `node-cron`; native `setInterval`.'
+---
+
+# Schedule recurring jobs
+
+In-process recurring job scheduler. Built on `dayjs`. Two primitives, factory-first API, type-safe events.
+
+> This skill is the scheduler **map** — read it first, then load the specific skill for the task.
+
+## The 2-primitive surface
+
+```
+Job          → the scheduled unit          (factory: `job(name, callback)`)
+Scheduler    → the runtime / tick loop     (singleton: `scheduler` | class: `new Scheduler()`)
+```
+
+A `Job` carries the schedule (interval or cron), retry config, overlap rule, timezone, and the callback. A `Scheduler` owns the tick loop, the registered jobs, the parallel/sequential execution mode, and emits lifecycle events. The exported `CronParser` is a utility for ad-hoc cron preview — not part of the scheduling flow.
+
+## Install
+
+```bash
+yarn add @warlock.js/scheduler
+```
+
+## Foundations
+
+The 9 things that are true in every scheduler use:
+
+1. **Factory-first.** `import { job, scheduler } from "@warlock.js/scheduler"`. Users do not call `new Job()` directly (it works, but `job()` is the documented surface).
+2. **Default timezone is UTC.** `daily().at("09:00")` fires at 09:00 UTC, regardless of the server's clock. Pin a job to wall-clock with `.inTimezone("America/New_York")`. See [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md).
+3. **The scheduler awaits each tick.** Concurrent same-job runs from the scheduler's own loop are structurally impossible. `preventOverlap()` is for jobs that ALSO get invoked outside the loop. See [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md).
+4. **Cron uses 5-field Vixie semantics.** When both `dayOfMonth` and `dayOfWeek` are restricted (neither is `*`), a date matches if EITHER constraint matches. Standard-cron compatible. See [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md).
+5. **`nextRun` always advances after a run — success OR failure.** A permanently failing job re-fires on its next scheduled slot, not on every tick.
+6. **Validation throws at definition time.** `every(0)`, `at("24:00")`, `on(32)`, `retry(-1)`, malformed cron — all throw immediately when you wire the job, not at runtime.
+7. **`Job.run()` returns a `JobResult`, never throws.** Errors funnel into `result.error`. The scheduler emits `job:error` after all retries are exhausted.
+8. **Parallel mode is within a tick, not across.** Even with `runInParallel(true)`, the NEXT tick waits for the current tick's jobs to all settle.
+9. **Tick interval is drift-compensated.** A tick that takes 200 ms is followed by an 800 ms delay so the cadence between tick *starts* averages `tickInterval`, not `tickInterval + work-time`.
+
+## 30-second example
+
+```ts
+import { scheduler, job } from "@warlock.js/scheduler";
+
+scheduler.on("job:error", (name, error) => logger.error({ name, error }));
+
+scheduler.addJob(
+  job("nightly-cleanup", async () => {
+    await db.deleteExpiredTokens();
+  })
+    .daily()
+    .at("03:00")
+    .inTimezone("America/New_York")
+    .preventOverlap()
+    .retry(3, 1000)
+);
+
+scheduler.start();
+
+process.on("SIGTERM", async () => {
+  await scheduler.shutdown(30_000);
+  process.exit(0);
+});
+```
+
+## Pick a skill
+
+| If the task is about… | Load |
+| --- | --- |
+| Building schedules via `every*`/`daily`/`weekly`/`monthly`/`at`/`on`/`beginOf`/`endOf` | [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) |
+| Writing `.cron("…")` expressions, debugging DOM/DOW behavior, using `parseCron()` for preview | [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md) |
+| Configuring `.retry()` / exponential backoff, `.preventOverlap()`, understanding failure rescheduling | [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md) |
+| Subscribing to scheduler events, reading `JobResult`, lifecycle, graceful shutdown | [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) |
+| Per-job `.inTimezone()`, multi-region patterns, DST handling | [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md) |
+
+## When NOT to use this skill
+
+- Jobs imported from `bullmq`, `agenda`, `node-cron`, etc. — those are different libraries.
+- Long-running queue workers (consumer processes) — this is a scheduler, not a queue.
+- One-off "run this at a specific date once" — currently not supported (on the backlog as `runAt()`).
+- Multi-replica deployments needing leader election — also on the backlog (distributed locking).
+
+## Package structure
+
+```
+@warlock.js/scheduler
+  src/
+    index.ts        — barrel: Scheduler, scheduler, Job, job, CronParser, parseCron, types
+    scheduler.ts    — Scheduler class + default singleton
+    job.ts          — Job class + job() factory
+    cron-parser.ts  — CronParser class + parseCron() factory
+    types.ts        — TimeType, Day, JobIntervals, JobResult, RetryConfig, SchedulerEvents
+```
+
+

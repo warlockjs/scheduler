@@ -35,8 +35,12 @@ export type CronFields = {
  * - `5` - specific value
  * - `1,3,5` - list of values
  * - `1-5` - range of values
- * - `* /5` - step values (every 5)
+ * - `*‍/5` - step values (every 5)
  * - `1-10/2` - range with step
+ *
+ * **Day-of-month / day-of-week semantics:** follows Vixie cron — when both
+ * fields are restricted (neither is `*`), a date matches if it satisfies
+ * EITHER constraint. When only one is restricted, the other is ignored.
  *
  * @example
  * ```typescript
@@ -46,6 +50,8 @@ export type CronFields = {
  */
 export class CronParser {
   private readonly _fields: CronFields;
+  private readonly _isDayOfMonthRestricted: boolean;
+  private readonly _isDayOfWeekRestricted: boolean;
 
   /**
    * Creates a new CronParser instance
@@ -54,7 +60,28 @@ export class CronParser {
    * @throws Error if expression is invalid
    */
   public constructor(private readonly _expression: string) {
-    this._fields = this._parse(_expression);
+    const parts = _expression.trim().split(/\s+/);
+
+    if (parts.length !== 5) {
+      throw new Error(
+        `Invalid cron expression: "${_expression}". Expected 5 fields (minute hour day month weekday).`,
+      );
+    }
+
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+
+    this._isDayOfMonthRestricted = dayOfMonth.trim() !== "*";
+    this._isDayOfWeekRestricted = dayOfWeek.trim() !== "*";
+
+    this._fields = {
+      minutes: this._parseField(minute, 0, 59),
+      hours: this._parseField(hour, 0, 23),
+      daysOfMonth: this._parseField(dayOfMonth, 1, 31),
+      months: this._parseField(month, 1, 12),
+      daysOfWeek: this._parseField(dayOfWeek, 0, 6),
+    };
+
+    this._assertSatisfiable();
   }
 
   /**
@@ -80,7 +107,10 @@ export class CronParser {
   public nextRun(from: Dayjs = dayjs()): Dayjs {
     let date = from.add(1, "minute").second(0).millisecond(0);
 
-    // Maximum iterations to prevent infinite loops
+    // Defensive backstop only: impossible day-of-month / month combinations are
+    // rejected eagerly in the constructor (see `_assertSatisfiable`), so a
+    // satisfiable expression resolves within a single year. This bound just
+    // guarantees the loop can never spin unbounded.
     const maxIterations = 366 * 24 * 60; // 1 year of minutes
     let iterations = 0;
 
@@ -93,14 +123,8 @@ export class CronParser {
         continue;
       }
 
-      // Check day of month
-      if (!this._fields.daysOfMonth.includes(date.date())) {
-        date = date.add(1, "day").hour(0).minute(0);
-        continue;
-      }
-
-      // Check day of week
-      if (!this._fields.daysOfWeek.includes(date.day())) {
+      // Day-of-month + day-of-week — Vixie OR semantics when both restricted.
+      if (!this._dayMatches(date)) {
         date = date.add(1, "day").hour(0).minute(0);
         continue;
       }
@@ -121,7 +145,9 @@ export class CronParser {
       return date;
     }
 
-    throw new Error(`Could not find next run time for cron expression: ${this._expression}`);
+    throw new Error(
+      `Could not find next run time for cron expression: ${this._expression}`,
+    );
   }
 
   /**
@@ -134,39 +160,85 @@ export class CronParser {
     return (
       this._fields.minutes.includes(date.minute()) &&
       this._fields.hours.includes(date.hour()) &&
-      this._fields.daysOfMonth.includes(date.date()) &&
       this._fields.months.includes(date.month() + 1) &&
-      this._fields.daysOfWeek.includes(date.day())
+      this._dayMatches(date)
     );
   }
 
   /**
-   * Parse a cron expression into fields
+   * Day-of-month / day-of-week match using Vixie cron semantics.
+   *
+   * When both fields are restricted (neither was `*`), a date matches if
+   * EITHER the day-of-month or the day-of-week matches. When only one is
+   * restricted, only that one needs to match (the other is the full set
+   * by construction, so AND degenerates to the restricted one).
    */
-  private _parse(expression: string): CronFields {
-    const parts = expression.trim().split(/\s+/);
+  private _dayMatches(date: Dayjs): boolean {
+    const dayOfMonthMatches = this._fields.daysOfMonth.includes(date.date());
+    const dayOfWeekMatches = this._fields.daysOfWeek.includes(date.day());
 
-    if (parts.length !== 5) {
-      throw new Error(
-        `Invalid cron expression: "${expression}". Expected 5 fields (minute hour day month weekday).`,
-      );
+    if (this._isDayOfMonthRestricted && this._isDayOfWeekRestricted) {
+      return dayOfMonthMatches || dayOfWeekMatches;
     }
 
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+    return dayOfMonthMatches && dayOfWeekMatches;
+  }
 
-    return {
-      minutes: this._parseField(minute, 0, 59),
-      hours: this._parseField(hour, 0, 23),
-      daysOfMonth: this._parseField(dayOfMonth, 1, 31),
-      months: this._parseField(month, 1, 12),
-      daysOfWeek: this._parseField(dayOfWeek, 0, 6),
-    };
+  /**
+   * Reject expressions whose day-of-month / month combination can never occur
+   * (e.g. `0 0 30 2 *` — February never has a 30th).
+   *
+   * Without this guard, `nextRun()` would scan its full ~1-year iteration
+   * budget (527,040 passes) before throwing — seconds of synchronous CPU that
+   * stalls the event loop. Catching it here makes the failure eager and cheap,
+   * consistent with every other validation throw in the constructor.
+   *
+   * Only applies when the day-of-week field is unrestricted (`*`). Under Vixie
+   * OR semantics, a restricted day-of-week keeps the schedule satisfiable via
+   * the weekday path even when no listed day-of-month fits any listed month, so
+   * such expressions must NOT be rejected.
+   */
+  private _assertSatisfiable(): void {
+    if (this._isDayOfWeekRestricted) {
+      return;
+    }
+
+    const smallestDay = this._fields.daysOfMonth[0];
+
+    const reachable = this._fields.months.some(
+      (month) => smallestDay <= this._maxDaysInMonth(month),
+    );
+
+    if (!reachable) {
+      throw new Error(
+        `Impossible cron expression: "${this._expression}". No day-of-month in [${this._fields.daysOfMonth.join(", ")}] ever occurs in month(s) [${this._fields.months.join(", ")}].`,
+      );
+    }
+  }
+
+  /**
+   * Largest possible day number for a 1-based month, taking leap years into
+   * account so February resolves to 29 (a date that does occur, just not every
+   * year). Used by satisfiability checking, never for matching a concrete date.
+   */
+  private _maxDaysInMonth(month: number): number {
+    if (month === 2) {
+      return 29;
+    }
+
+    const thirtyDayMonths = [4, 6, 9, 11];
+
+    if (thirtyDayMonths.includes(month)) {
+      return 30;
+    }
+
+    return 31;
   }
 
   /**
    * Parse a single cron field
    *
-   * @param field - Field value (e.g., "*", "5", "1-5", "* /2", "1,3,5")
+   * @param field - Field value (e.g., "*", "5", "1-5", "*‍/2", "1,3,5")
    * @param min - Minimum allowed value
    * @param max - Maximum allowed value
    * @returns Array of matching values
@@ -178,7 +250,7 @@ export class CronParser {
     const parts = field.split(",");
 
     for (const part of parts) {
-      // Handle step values (e.g., "*/5" or "1-10/2")
+      // Handle step values (e.g., "*‍/5" or "1-10/2")
       const [range, stepStr] = part.split("/");
       const step = stepStr ? parseInt(stepStr, 10) : 1;
 
@@ -204,7 +276,9 @@ export class CronParser {
         }
 
         if (rangeStart < min || rangeEnd > max || rangeStart > rangeEnd) {
-          throw new Error(`Range out of bounds in cron field: "${field}" (valid: ${min}-${max})`);
+          throw new Error(
+            `Range out of bounds in cron field: "${field}" (valid: ${min}-${max})`,
+          );
         }
       } else {
         // Single value
@@ -215,7 +289,9 @@ export class CronParser {
         }
 
         if (value < min || value > max) {
-          throw new Error(`Value out of bounds in cron field: "${field}" (valid: ${min}-${max})`);
+          throw new Error(
+            `Value out of bounds in cron field: "${field}" (valid: ${min}-${max})`,
+          );
         }
 
         rangeStart = value;

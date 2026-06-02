@@ -1,29 +1,42 @@
 {
-    "name": "@warlock.js/scheduler",
-    "version": "4.0.174",
-    "description": "A simple scheduler package to run jobs in scheduled times",
-    "main": "src/index.ts",
-    "dependencies": {
-        "dayjs": "^1.11.19"
-    },
-    "repository": {
-        "type": "git",
-        "url": "https://github.com/warlockjs/scheduler"
-    },
-    "keywords": [
-        "warlock.js",
-        "scheduler",
-        "job",
-        "cron",
-        "time",
-        "date",
-        "interval",
-        "timer",
-        "delay",
-        "timeout"
-    ],
-    "author": "hassanzohdy",
-    "license": "MIT",
-    "module": "./esm/index.js",
-    "typings": "./cjs/index.d.ts"
+  "name": "@warlock.js/scheduler",
+  "version": "4.1.0",
+  "type": "module",
+  "description": "A simple scheduler package to run jobs in scheduled times",
+  "main": "src/index.ts",
+  "module": "./esm/index.js",
+  "typings": "./cjs/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.19"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warlockjs/scheduler"
+  },
+  "keywords": [
+    "warlock.js",
+    "scheduler",
+    "job",
+    "cron",
+    "time",
+    "date",
+    "interval",
+    "timer",
+    "delay",
+    "timeout"
+  ],
+  "author": "hassanzohdy",
+  "license": "MIT"
 }

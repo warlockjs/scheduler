@@ -16,12 +16,28 @@ export type Day =
   | "saturday";
 
 /**
+ * How the day-of-month constraint is interpreted.
+ *
+ * - `"specific"` — `day` is a fixed day number (1–31).
+ * - `"last"` — recompute each cycle as the last day of the current month
+ *   (so `endOf("month")` is correct in February vs. March).
+ */
+export type DayOfMonthMode = "specific" | "last";
+
+/**
  * Job interval configuration
  */
 export type JobIntervals = {
-  /** Day of week or day of month */
+  /** Day of week (string) or day of month (1–31) */
   day?: Day | number;
-  /** Time of day in HH:mm format */
+  /**
+   * Day-of-month interpretation. Defaults to `"specific"` when `day` is a
+   * number. `"last"` overrides `day` and resolves to `daysInMonth()` per cycle.
+   */
+  dayOfMonthMode?: DayOfMonthMode;
+  /** Month constraint (1–12). Used by `beginOf`/`endOf` of `"year"`. */
+  month?: number;
+  /** Time of day in HH:mm or HH:mm:ss format */
   time?: string;
   /** Recurring interval configuration */
   every?: {

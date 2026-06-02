@@ -1,4 +1,4 @@
-import { EventEmitter } from "events";
+import { EventEmitter } from "node:events";
 import { Job, JobCallback } from "./job";
 import type { JobResult, SchedulerEvents } from "./types";
 
@@ -125,13 +125,23 @@ export class Scheduler
   }
 
   /**
-   * Add multiple jobs to the scheduler
+   * Add multiple jobs to the scheduler.
+   *
+   * If the scheduler is already running, every newly-added job is prepared
+   * (its initial `nextRun` is computed) so it begins firing on the next tick.
    *
    * @param jobs - Array of Job instances
    * @returns this for chaining
    */
   public addJobs(jobs: Job[]): this {
     this._jobs.push(...jobs);
+
+    if (this.isRunning) {
+      for (const job of jobs) {
+        job.prepare();
+      }
+    }
+
     return this;
   }
 
@@ -142,11 +152,13 @@ export class Scheduler
    * @returns true if job was found and removed
    */
   public removeJob(jobName: string): boolean {
-    const index = this._jobs.findIndex((j) => j.name === jobName);
+    const index = this._jobs.findIndex(j => j.name === jobName);
+
     if (index !== -1) {
       this._jobs.splice(index, 1);
       return true;
     }
+
     return false;
   }
 
@@ -157,7 +169,7 @@ export class Scheduler
    * @returns Job instance or undefined
    */
   public getJob(jobName: string): Job | undefined {
-    return this._jobs.find((j) => j.name === jobName);
+    return this._jobs.find(j => j.name === jobName);
   }
 
   /**
@@ -179,6 +191,7 @@ export class Scheduler
     if (ms < 100) {
       throw new Error("Tick interval must be at least 100ms");
     }
+
     this._tickInterval = ms;
     return this;
   }
@@ -214,28 +227,27 @@ export class Scheduler
       throw new Error("Cannot start scheduler with no jobs.");
     }
 
-    // Prepare all jobs (calculate initial next run times)
     for (const job of this._jobs) {
       job.prepare();
     }
 
     this._isShuttingDown = false;
-    this._scheduleTick();
+    this._scheduleTick(this._tickInterval);
 
     this.emit("scheduler:started");
   }
 
   /**
-   * Stop the scheduler immediately
+   * Stop the scheduler immediately.
    *
-   * Note: This does not wait for running jobs to complete.
-   * Use shutdown() for graceful termination.
+   * No-op if the scheduler isn't running. Does not wait for in-flight jobs —
+   * use `shutdown()` for graceful termination.
    */
   public stop(): void {
-    if (this._timeoutId) {
-      clearTimeout(this._timeoutId);
-      this._timeoutId = null;
-    }
+    if (!this._timeoutId) return;
+
+    clearTimeout(this._timeoutId);
+    this._timeoutId = null;
 
     this.emit("scheduler:stopped");
   }
@@ -252,14 +264,12 @@ export class Scheduler
     this._isShuttingDown = true;
     this.stop();
 
-    // Get all currently running jobs
-    const runningJobs = this._jobs.filter((j) => j.isRunning);
+    const runningJobs = this._jobs.filter(j => j.isRunning);
 
     if (runningJobs.length > 0) {
-      // Wait for jobs to complete or timeout
       await Promise.race([
-        Promise.all(runningJobs.map((j) => j.waitForCompletion())),
-        new Promise<void>((resolve) => setTimeout(resolve, timeout)),
+        Promise.all(runningJobs.map(j => j.waitForCompletion())),
+        new Promise<void>(resolve => setTimeout(resolve, timeout)),
       ]);
     }
   }
@@ -269,23 +279,26 @@ export class Scheduler
   // ─────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Schedule the next tick
+   * Schedule the next tick.
+   *
+   * Drift-compensated: after each tick, the next delay is `tickInterval -
+   * elapsed-tick-time` (clamped to 0). A tick that takes 600 ms on a 1 000 ms
+   * interval will be followed by a 400 ms delay so the *period* between tick
+   * starts averages `tickInterval` instead of `tickInterval + work-time`.
    */
-  private _scheduleTick(): void {
+  private _scheduleTick(delay: number): void {
     if (this._isShuttingDown) return;
 
-    const startTime = Date.now();
-
-    // Use setImmediate for first tick to allow event handlers to be registered
     this._timeoutId = setTimeout(async () => {
+      const tickStart = Date.now();
+
       await this._tick();
 
-      // Calculate time spent and adjust next tick for drift compensation
-      const elapsed = Date.now() - startTime;
-      const nextTick = Math.max(this._tickInterval - elapsed, 0);
+      const elapsed = Date.now() - tickStart;
+      const nextDelay = Math.max(this._tickInterval - elapsed, 0);
 
-      this._scheduleTick();
-    }, this._tickInterval);
+      this._scheduleTick(nextDelay);
+    }, delay);
   }
 
   /**
@@ -294,11 +307,11 @@ export class Scheduler
   private async _tick(): Promise<void> {
     this.emit("scheduler:tick", new Date());
 
-    // Find jobs that should run
-    const dueJobs = this._jobs.filter((job) => {
-      if (!job.shouldRun()) return false;
+    const dueJobs = this._jobs.filter(job => {
+      // Time-based readiness only; running state is checked below so a
+      // `job:skip` event fires whenever overlap blocks a due run.
+      if (!job.isDue()) return false;
 
-      // Skip if overlap prevention is enabled and job is running
       if (job.isRunning) {
         this.emit("job:skip", job.name, "Job is already running");
         return false;
@@ -330,7 +343,6 @@ export class Scheduler
    * Run jobs in parallel with concurrency limit
    */
   private async _runJobsInParallel(jobs: Job[]): Promise<void> {
-    // Simple batching for concurrency control
     const batches: Job[][] = [];
 
     for (let i = 0; i < jobs.length; i += this._maxConcurrency) {
@@ -339,7 +351,7 @@ export class Scheduler
 
     for (const batch of batches) {
       if (this._isShuttingDown) break;
-      await Promise.allSettled(batch.map((job) => this._runJob(job)));
+      await Promise.allSettled(batch.map(job => this._runJob(job)));
     }
   }
 

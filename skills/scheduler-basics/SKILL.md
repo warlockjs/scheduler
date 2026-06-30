@@ -64,6 +64,8 @@ process.on("SIGTERM", async () => {
 });
 ```
 
+> Registering jobs alone runs nothing — you must call `scheduler.start()`. As a safety net, in development (`NODE_ENV !== "production"`) the scheduler logs a one-shot `console.warn` if jobs are registered but `start()` is never called.
+
 ## Pick a skill
 
 | If the task is about… | Load |

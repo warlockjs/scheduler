@@ -800,3 +800,113 @@ describe("Scheduler — cron integration", () => {
     scheduler.stop();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dev-mode "registered but never started" warning (S7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("Scheduler — registered-but-never-started warning", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let originalNodeEnv: string | undefined;
+
+  beforeEach(() => {
+    originalNodeEnv = process.env.NODE_ENV;
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("warns when a job is registered but start() is never called", async () => {
+    const scheduler = new Scheduler();
+    scheduler.addJob(job("a", noop).everyMinute());
+
+    // Deferred one-shot check fires on the next macrotask.
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    const message = String(warnSpy.mock.calls[0]?.[0]);
+    expect(message).toContain("1 job(s) registered");
+    expect(message).toContain("scheduler.start() was never called");
+  });
+
+  it("reports the registered job count in the warning", async () => {
+    const scheduler = new Scheduler();
+    scheduler.addJobs([
+      job("a", noop).everyMinute(),
+      job("b", noop).everyMinute(),
+      job("c", noop).everyMinute(),
+    ]);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(String(warnSpy.mock.calls[0]?.[0])).toContain("3 job(s) registered");
+  });
+
+  it("arms the check only once across multiple registrations", async () => {
+    const scheduler = new Scheduler();
+    scheduler.addJob(job("a", noop).everyMinute());
+    scheduler.addJob(job("b", noop).everyMinute());
+    scheduler.addJobs([job("c", noop).everyMinute()]);
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // A single deferred warning, not one per registration.
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it("does NOT warn when start() is called before the check fires", async () => {
+    const scheduler = new Scheduler();
+    scheduler.addJob(job("a", noop).everyMinute());
+    scheduler.start();
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    scheduler.stop();
+  });
+
+  it("does NOT warn after start() then stop() (started at least once)", async () => {
+    const scheduler = new Scheduler();
+    scheduler.addJob(job("a", noop).everyMinute());
+    scheduler.start();
+    scheduler.stop();
+
+    // Registering more jobs after a start/stop cycle must not re-arm.
+    scheduler.addJob(job("b", noop).everyMinute());
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT warn in production (NODE_ENV=production)", async () => {
+    process.env.NODE_ENV = "production";
+
+    const scheduler = new Scheduler();
+    scheduler.addJob(job("a", noop).everyMinute());
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT warn when every registered job was later removed", async () => {
+    const scheduler = new Scheduler();
+    scheduler.addJob(job("a", noop).everyMinute());
+    scheduler.removeJob("a");
+
+    await vi.advanceTimersByTimeAsync(0);
+
+    // No jobs remain when the deferred check fires → nothing to warn about.
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+});

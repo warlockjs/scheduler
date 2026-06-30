@@ -77,6 +77,22 @@ export class Scheduler
    */
   private _isShuttingDown = false;
 
+  /**
+   * Whether `start()` has ever been called on this scheduler.
+   *
+   * Distinct from `isRunning`: it stays `true` after `stop()`, so the
+   * registered-but-never-started warning never fires once the scheduler has
+   * been started at least once.
+   */
+  private _hasStarted = false;
+
+  /**
+   * One-shot deferred timer that warns when jobs are registered but
+   * `start()` is never called. Armed on the first `addJob`/`addJobs` and
+   * cleared by `start()` (or once it has fired).
+   */
+  private _startWarningTimer: NodeJS.Timeout | null = null;
+
   // ─────────────────────────────────────────────────────────────────────────────
   // Public Getters
   // ─────────────────────────────────────────────────────────────────────────────
@@ -112,6 +128,8 @@ export class Scheduler
       job.prepare();
     }
 
+    this._armStartWarning();
+
     return this;
   }
 
@@ -141,6 +159,8 @@ export class Scheduler
         job.prepare();
       }
     }
+
+    this._armStartWarning();
 
     return this;
   }
@@ -227,6 +247,9 @@ export class Scheduler
       throw new Error("Cannot start scheduler with no jobs.");
     }
 
+    this._hasStarted = true;
+    this._clearStartWarning();
+
     for (const job of this._jobs) {
       job.prepare();
     }
@@ -277,6 +300,54 @@ export class Scheduler
   // ─────────────────────────────────────────────────────────────────────────────
   // Private Methods
   // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Arm the one-shot "registered but never started" development warning.
+   *
+   * Called whenever a job is registered. Does nothing in production
+   * (`NODE_ENV === "production"`), once `start()` has been called, or when a
+   * check is already armed. The deferred check is unref'd so it can never keep
+   * the event loop (and the process) alive on its own.
+   */
+  private _armStartWarning(): void {
+    if (process.env.NODE_ENV === "production") {
+      return;
+    }
+
+    if (this._hasStarted || this._startWarningTimer !== null) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      this._startWarningTimer = null;
+
+      if (this._hasStarted || this._jobs.length === 0) {
+        return;
+      }
+
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[@warlock.js/scheduler] ${this._jobs.length} job(s) registered but ` +
+          `scheduler.start() was never called — no jobs will run. ` +
+          `Call scheduler.start() to begin executing them.`,
+      );
+    }, 0);
+
+    // Never let the deferred check hold the process open.
+    timer.unref?.();
+
+    this._startWarningTimer = timer;
+  }
+
+  /**
+   * Clear the armed "registered but never started" warning, if any.
+   */
+  private _clearStartWarning(): void {
+    if (this._startWarningTimer !== null) {
+      clearTimeout(this._startWarningTimer);
+      this._startWarningTimer = null;
+    }
+  }
 
   /**
    * Schedule the next tick.

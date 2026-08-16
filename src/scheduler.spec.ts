@@ -811,6 +811,11 @@ describe("Scheduler — registered-but-never-started warning", () => {
 
   beforeEach(() => {
     originalNodeEnv = process.env.NODE_ENV;
+    // The warning is deliberately suppressed in production, so these dev-mode
+    // cases have to declare the environment they are testing rather than
+    // inherit whatever the launching shell happened to export. Without this,
+    // a shell with NODE_ENV=production turns three correct tests red.
+    process.env.NODE_ENV = "test";
     warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 

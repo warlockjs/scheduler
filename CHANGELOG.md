@@ -4,6 +4,23 @@ All notable changes to `@warlock.js/scheduler` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). `@warlock.js/*` packages are released in lockstep — every package shares the same version number, so a version below may list only the changes that affected this package.
 
+## 5.1.0
+
+No changes to `@warlock.js/scheduler`. Released in lockstep with the `@warlock.js/web`
+React-execution fix and the `@warlock.js/core` CLI additions — see those packages'
+changelogs.
+
+## 5.0.2 - 2026-08-25
+
+No changes to `@warlock.js/scheduler`. Released in lockstep with the `@warlock.js/web` SSR
+fix (`ssr.noExternal`) — see that package's changelog.
+
+## 5.0.1 - 2026-08-25
+
+No changes to `@warlock.js/scheduler`. Released in lockstep with the `create-warlock` vite
+resolution pin and the `@warlock.js/web` peer narrowing — see those packages'
+changelogs.
+
 ## 5.0.0 - 2026-08-25
 
 ### Changed

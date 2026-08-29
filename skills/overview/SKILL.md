@@ -7,6 +7,10 @@ description: 'Front-door orientation for `@warlock.js/scheduler` — cron-like j
 
 Production-ready job scheduler with a cron engine, fluent schedule builder, retry-with-backoff, overlap prevention, IANA timezone pinning, and seven typed lifecycle events. Two primitives — `job(name, fn)` and the `scheduler` singleton — that compose into everything else.
 
+## Server-only package
+
+`@warlock.js/scheduler`'s entire runtime surface is server-only — its `package.json` declares `"warlock": { "environment": "server" }`. This is build-boundary metadata read by `@warlock.js/web`'s Gate A (import resolution) and Gate C (emitted-bundle verification), not application behavior. App code that reaches the client bundle (including page and layout modules) must not value-import `@warlock.js/scheduler` — Gate A refuses the build. A type-only import (`import type { ... }`) is allowed. Server loaders, controllers, and modules may import it freely.
+
 ## When to reach for it
 
 - You have **recurring work** in a Node service (cleanups, reports, syncs, polling) and want it scheduled inside the app process — no external cron, no docker-cron sidecar.

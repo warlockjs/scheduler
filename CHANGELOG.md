@@ -4,6 +4,16 @@ All notable changes to `@warlock.js/scheduler` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). `@warlock.js/*` packages are released in lockstep — every package shares the same version number, so a version below may list only the changes that affected this package.
 
+## Unreleased
+
+- Documented: the README, CHANGELOG, and `overview` skill now describe the
+  already-shipped `package.json` `"warlock": { "environment": "server" }`
+  marker — `@warlock.js/scheduler`'s entire runtime surface is server-only.
+  The marker is build-boundary metadata read by `@warlock.js/web`'s Gate A
+  (import resolution) and Gate C (emitted-bundle verification); app client
+  code must not value-import this package, type-only imports are allowed, and
+  server loaders/controllers/modules may import it freely. No source change.
+
 ## 5.1.0
 
 No changes to `@warlock.js/scheduler`. Released in lockstep with the `@warlock.js/web`

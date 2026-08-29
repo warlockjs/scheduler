@@ -6,6 +6,14 @@ In-process recurring job scheduler. Fluent and cron-style scheduling, typed even
 npm install @warlock.js/scheduler
 ```
 
+## Server-only package
+
+`@warlock.js/scheduler`'s entire runtime surface is server-only. Its `package.json` declares `"warlock": { "environment": "server" }` — build-boundary metadata that `@warlock.js/web`'s Gate A (import resolution) and Gate C (emitted-bundle verification) read to keep it out of the browser bundle.
+
+- App code that reaches the client bundle (including page and layout modules) must not value-import `@warlock.js/scheduler` — Gate A refuses the build.
+- A type-only import (`import type { ... } from "@warlock.js/scheduler"`) is allowed — it carries no runtime edge.
+- Server loaders, controllers, and modules may import it freely.
+
 ## What it gives you
 
 - **Fluent API** — `daily()`, `weekly()`, `monthly()`, `at()`, `on()`, `beginOf()`, `endOf()`, `every(N, unit)`

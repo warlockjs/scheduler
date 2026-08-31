@@ -21,7 +21,7 @@ A `Job` carries the schedule (interval or cron), retry config, overlap rule, tim
 ## Install
 
 ```bash
-yarn add @warlock.js/scheduler
+pnpm add @warlock.js/scheduler
 ```
 
 ## Foundations

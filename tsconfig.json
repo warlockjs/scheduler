@@ -1,11 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    // The shared source in sibling packages uses ES2022 APIs (Object.hasOwn,
-    // String.replaceAll, Array.at). A consumer compiles that source under ITS OWN
-    // lib, so an unset lib defaulting to the target left every consumer failing on
-    // code the owning package compiles cleanly.
-    "lib": ["ES2022"],
+    // Raised from the ES2020 default because the shared source in sibling packages
+    // uses ES2022 APIs (Object.hasOwn, String.replaceAll, Array.at), and a consumer
+    // compiles that source under ITS OWN lib. DOM is listed explicitly because an
+    // UNSET lib resolves to the .full variant, which bundles DOM - so naming a lib
+    // without it would silently drop DOM types this package already relied on.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "CommonJS",
     "moduleResolution": "node",
     "types": ["node"],

@@ -1,6 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2020",
+    // The shared source in sibling packages uses ES2022 APIs (Object.hasOwn,
+    // String.replaceAll, Array.at). A consumer compiles that source under ITS OWN
+    // lib, so an unset lib defaulting to the target left every consumer failing on
+    // code the owning package compiles cleanly.
+    "lib": ["ES2022"],
     "module": "CommonJS",
     "moduleResolution": "node",
     "types": ["node"],

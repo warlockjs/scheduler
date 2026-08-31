@@ -41,5 +41,6 @@
     "timeout"
   ],
   "author": "hassanzohdy",
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@11.24.0"
 }

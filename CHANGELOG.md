@@ -4,6 +4,12 @@ All notable changes to `@warlock.js/scheduler` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). `@warlock.js/*` packages are released in lockstep — every package shares the same version number, so a version below may list only the changes that affected this package.
 
+## 5.2.3 - 2026-09-02
+
+### Fixed
+
+- Released in exact lockstep with Core's Web generator repairs so every family dependency remains installable at 5.2.3.
+
 ## 5.2.2
 
 - Documented: the README, CHANGELOG, and `overview` skill now describe the

@@ -1,6 +1,6 @@
 ---
 name: overview
-description: 'Front-door orientation for `@warlock.js/scheduler` — cron-like job scheduling with fluent schedule API (`.daily().at()`, `.weekly().on()`, `.cron("...")`), retry with backoff, overlap prevention, IANA timezone pinning, and seven typed lifecycle events. UTC default; opt into local time per job. TRIGGER when: code imports anything from `@warlock.js/scheduler`; user asks "what does @warlock.js/scheduler do", "compare with node-cron / agenda / bull", "schedule a cron job in Node", "how do I prevent overlapping runs", "how do I retry a failed job", "what timezone does the scheduler use"; package.json adds `@warlock.js/scheduler`. Skip: specific task already known — load the matching task skill directly (`scheduler-basics`, `schedule-fluently`, `schedule-with-cron`, `configure-retry-and-overlap`, `pin-schedule-timezone`, `observe-scheduler`); ad-hoc `setTimeout` / `setInterval` for one-off delays (no cron / retry / observability needed).'
+description: "@warlock.js/scheduler overview for orientation and choosing the focused skill for the task."
 ---
 
 # `@warlock.js/scheduler` — overview

@@ -1,6 +1,6 @@
 ---
 name: scheduler-basics
-description: 'Start with `@warlock.js/scheduler` — `job()` factory + `scheduler` singleton, 2-primitive surface, UTC default, factory-first API. Triggers: `job`, `scheduler`, `scheduler.addJob`, `scheduler.start`, `scheduler.newJob`; "schedule a recurring job", "how to use warlock scheduler", "where do I start"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: fluent — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; cron — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; retry — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; events — `@warlock.js/scheduler/observe-scheduler/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; competing `bullmq`, `agenda`, `node-cron`; native `setInterval`.'
+description: "Start here for @warlock.js/scheduler recurring jobs, schedules, worker configuration, and job lifecycle."
 ---
 
 # Schedule recurring jobs

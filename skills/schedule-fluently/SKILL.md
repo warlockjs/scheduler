@@ -1,6 +1,6 @@
 ---
 name: schedule-fluently
-description: 'Build a job schedule via `every*` / `daily` / `weekly` / `monthly` / `at` / `on` / `beginOf` / `endOf`. Triggers: `.everyMinutes`, `.daily`, `.weekly`, `.monthly`, `.at`, `.on`, `.every`, `.beginOf`, `.endOf`, `.twiceDaily`, `scheduler.newJob`; "run every 5 minutes", "daily at 3am", "monday standup", "first of every month", "last day of month"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: cron — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; retry — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; competing `node-cron`, `node-schedule`, `agenda`; native `setInterval`.'
+description: "Fluent scheduling API in @warlock.js/scheduler; use when you need to schedule fluently."
 ---
 
 # Fluent scheduling API

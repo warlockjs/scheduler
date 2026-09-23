@@ -1,6 +1,6 @@
 ---
 name: pin-schedule-timezone
-description: 'Pin a job to a specific IANA timezone via `.inTimezone(zone)` so its wall-clock fire time stays correct regardless of server location / DST. Triggers: `.inTimezone`, `America/New_York`, `Europe/Berlin`, `Asia/Tokyo`, `NODE_ICU_DATA`; "schedule job in a timezone", "DST drift on non-UTC server", "multi-region fan-out scheduling", "fire at 9am ET regardless of server"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: fluent interval methods — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; cron syntax — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; competing libs `dayjs-timezone`, `luxon`, `date-fns-tz`.'
+description: "Per-job timezones in @warlock.js/scheduler; use when you need to pin schedule timezone."
 ---
 
 # Per-job timezones

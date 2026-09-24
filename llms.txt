@@ -6,10 +6,10 @@
 
 ## Skills
 
-- [configure-retry-and-overlap](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md): Retry, backoff, and overlap in @warlock.js/scheduler; use when you need to configure retry and overlap.
-- [observe-scheduler](@warlock.js/scheduler/observe-scheduler/SKILL.md): Observability and lifecycle in @warlock.js/scheduler; use when you need to observe scheduler.
+- [configure-retry-and-overlap](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md): (no description)
+- [observe-scheduler](@warlock.js/scheduler/observe-scheduler/SKILL.md): (no description)
 - [overview](@warlock.js/scheduler/overview/SKILL.md): @warlock.js/scheduler overview for orientation and choosing the focused skill for the task.
-- [pin-schedule-timezone](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md): Per-job timezones in @warlock.js/scheduler; use when you need to pin schedule timezone.
-- [schedule-fluently](@warlock.js/scheduler/schedule-fluently/SKILL.md): Fluent scheduling API in @warlock.js/scheduler; use when you need to schedule fluently.
-- [schedule-with-cron](@warlock.js/scheduler/schedule-with-cron/SKILL.md): Cron expressions in @warlock.js/scheduler; use when you need to schedule with cron.
+- [pin-schedule-timezone](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md): (no description)
+- [schedule-fluently](@warlock.js/scheduler/schedule-fluently/SKILL.md): (no description)
+- [schedule-with-cron](@warlock.js/scheduler/schedule-with-cron/SKILL.md): (no description)
 - [scheduler-basics](@warlock.js/scheduler/scheduler-basics/SKILL.md): Start here for @warlock.js/scheduler recurring jobs, schedules, worker configuration, and job lifecycle.

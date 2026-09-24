@@ -135,3 +135,17 @@ If retries push the total work past the next interval, `preventOverlap()` ensure
 
 - [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) — full event reference, `JobResult` shape, lifecycle
 - [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — the scheduling methods these compose with
+
+## Running on one server only: `onOneServer()`
+
+`preventOverlap()` is in-process. With several app instances, add `onOneServer()` so only one instance runs each tick:
+
+```ts
+job("nightly-report", buildReport).daily().at("02:00").onOneServer().preventOverlap();
+job("sync", sync).everyMinutes(5).onOneServer({ lockTtl: "10m", key: "sync-v2" });
+```
+
+- Lock key: `scheduler.<key ?? name>.<scheduledTickEpochMs>` (scheduled tick time truncated to the second, so every server derives the same key). Losers skip the tick and the scheduler emits `job:skip`.
+- Default TTL: the job's interval capped at 1h, minimum 60s. Override with `lockTtl`.
+- Needs the optional `@warlock.js/cache` peer and a shared driver (redis/pg). On the memory driver it only dedupes within one process.
+- Throws at call time if the job has no name/key.

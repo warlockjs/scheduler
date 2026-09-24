@@ -61,6 +61,16 @@ process.on("SIGTERM", async () => {
 });
 ```
 
+## Running on one server
+
+`preventOverlap()` only guards a single process. When several instances run the same schedule, use `onOneServer()`:
+
+```ts
+job("nightly-report", buildReport).daily().at("02:00").onOneServer();
+```
+
+Servers race for a cache lock keyed `scheduler.<key ?? name>.<scheduledTickEpochMs>`; losers skip the tick (`job:skip`). Options: `{ lockTtl?, key? }` — default TTL is the interval capped at 1h (min 60s). Requires the optional `@warlock.js/cache` peer with a shared driver (redis/pg); the memory driver only dedupes within one process.
+
 ## Documentation
 
 - **User docs** — [`domains/scheduler/docs/`](../../domains/scheduler/docs/) — concepts, recipes, full API reference

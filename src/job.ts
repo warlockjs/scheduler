@@ -5,9 +5,34 @@ import utc from "dayjs/plugin/utc.js";
 import { CronParser } from "./cron-parser";
 import type { Day, JobIntervals, JobResult, RetryConfig, TimeType } from "./types";
 
+/**
+ * `@warlock.js/cache` is an optional peer, loaded only when `onOneServer()` is
+ * used. Memoized so every job shares one module instance.
+ */
+let cacheModule: Promise<typeof import("@warlock.js/cache")> | undefined;
+
+function loadCache(): Promise<typeof import("@warlock.js/cache")> {
+  cacheModule ??= import("@warlock.js/cache");
+
+  return cacheModule;
+}
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(isSameOrAfter);
+
+type CacheTtl = number | string;
+
+/** Milliseconds per interval unit (month/year approximate; only used to size the lock TTL) */
+const UNIT_MS: Record<TimeType, number> = {
+  second: 1000,
+  minute: 60_000,
+  hour: 3_600_000,
+  day: 86_400_000,
+  week: 604_800_000,
+  month: 2_592_000_000,
+  year: 31_536_000_000,
+};
 
 export type JobCallback = (job: Job) => Promise<any>;
 
@@ -117,6 +142,11 @@ export class Job {
    * All pending `waitForCompletion()` resolvers — drained on every run end.
    */
   private _completionResolvers: (() => void)[] = [];
+
+  /**
+   * Cross-server lock configuration (set by `onOneServer()`)
+   */
+  private _oneServer: { lockTtl?: CacheTtl; key: string } | null = null;
 
   // ─────────────────────────────────────────────────────────────────────────────
   // Public Properties
@@ -520,6 +550,35 @@ export class Job {
   }
 
   /**
+   * Run each tick on only one server.
+   *
+   * Every tick, servers race for a create-only cache claim keyed
+   * `scheduler.<key ?? name>.<scheduledTickEpochMs>` (the scheduled tick time
+   * truncated to the second, so all servers compute the same key). The winner
+   * runs the job; the others skip that tick silently. Works with `preventOverlap()`.
+   *
+   * Requires a shared cache driver (redis / pg) and the optional
+   * `@warlock.js/cache` peer. On a memory driver it only dedupes within one process.
+   *
+   * @param options.lockTtl - Lock TTL. Default: the job's interval capped at 1h, minimum 60s
+   * @param options.key - Stable key overriding the job name
+   * @throws Error if the job has no name/key
+   */
+  public onOneServer(options: { lockTtl?: CacheTtl; key?: string } = {}): this {
+    const key = options.key ?? this.name;
+
+    if (!key) {
+      throw new Error(
+        "onOneServer() requires a job name or `key` — the lock key must be stable across servers.",
+      );
+    }
+
+    this._oneServer = { lockTtl: options.lockTtl, key };
+
+    return this;
+  }
+
+  /**
    * Configure automatic retry on failure
    *
    * @param maxRetries - Maximum number of retry attempts (must be ≥ 0)
@@ -620,6 +679,7 @@ export class Job {
    */
   public async run(): Promise<JobResult> {
     const startTime = Date.now();
+    const scheduledAt = this.nextRun;
 
     this._isRunning = true;
 
@@ -627,13 +687,36 @@ export class Job {
     let executedRetries = 0;
 
     try {
-      const inner = await this._executeWithRetry();
-      executedRetries = inner.retries;
+      let skipped = false;
+
+      if (this._oneServer) {
+        const lockKey = this._lockKey(scheduledAt);
+        const { cache } = await loadCache();
+
+        // A CLAIM, not a lock: it is never released, only expires. A released
+        // lock would let a server whose timer fires late (after the winner has
+        // already finished) win the same tick again and run it twice.
+        const claim = (await cache.set(lockKey, `pid.${process.pid}`, {
+          onConflict: "create",
+          ttl: this._lockTtl(),
+        })) as { wasSet?: boolean } | undefined;
+
+        skipped = claim?.wasSet !== true;
+
+        if (!skipped) {
+          const inner = await this._executeWithRetry();
+          executedRetries = inner.retries;
+        }
+      } else {
+        const inner = await this._executeWithRetry();
+        executedRetries = inner.retries;
+      }
 
       result = {
         success: true,
         duration: Date.now() - startTime,
         retries: executedRetries,
+        ...(skipped ? { skipped: true } : {}),
       };
     } catch (error) {
       result = {
@@ -679,6 +762,30 @@ export class Job {
   // ─────────────────────────────────────────────────────────────────────────────
   // Private Methods
   // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Cross-server lock key for a scheduled tick (truncated to the second).
+   */
+  private _lockKey(scheduledAt: Dayjs | null): string {
+    const tick = Math.floor((scheduledAt ?? this._now()).valueOf() / 1000) * 1000;
+
+    return `scheduler.${this._oneServer!.key}.${tick}`;
+  }
+
+  /**
+   * Lock TTL: explicit option, else min(interval, 1h) with a 60s floor.
+   */
+  private _lockTtl(): CacheTtl {
+    if (this._oneServer!.lockTtl !== undefined) return this._oneServer!.lockTtl;
+
+    const every = this._intervals.every;
+    const intervalMs =
+      every?.value !== undefined && every.type !== undefined
+        ? every.value * UNIT_MS[every.type]
+        : 3_600_000;
+
+    return Math.max(60, Math.floor(Math.min(intervalMs, 3_600_000) / 1000));
+  }
 
   /**
    * Get current time, respecting the configured timezone.

@@ -58,6 +58,8 @@ export type JobResult = {
   error?: unknown;
   /** Number of retry attempts made */
   retries?: number;
+  /** True when the run was skipped (e.g. another server held the `onOneServer()` lock) */
+  skipped?: boolean;
 };
 
 /**

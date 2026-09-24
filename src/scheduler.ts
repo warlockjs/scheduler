@@ -434,7 +434,9 @@ export class Scheduler
 
     const result = await job.run();
 
-    if (result.success) {
+    if (result.skipped) {
+      this.emit("job:skip", job.name, "Another server holds the lock");
+    } else if (result.success) {
       this.emit("job:complete", job.name, result);
     } else {
       this.emit("job:error", job.name, result.error);

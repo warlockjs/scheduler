@@ -1,6 +1,6 @@
 ---
 name: schedule-with-cron
-description: "Cron expressions in @warlock.js/scheduler; use when you need to schedule with cron."
+description: 'Write `.cron(''…'')` expressions — 5-field syntax, operators (`*` `,` `-` `/`), Vixie OR semantics for DOM / DOW, `parseCron()` preview utility. Triggers: `.cron`, `parseCron`, `CronParser`, `*/5 * * * *`, `0 9 * * 1-5`; "write a cron expression", "every weekday at 9am cron", "preview next cron run", "migrate crontab(5) entry"; typical import `import { parseCron } from "@warlock.js/scheduler"`. Skip: human-readable schedules — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; competing libs `node-cron`, `cron`, `croner`, `cronstrue`.'
 ---
 
 # Cron expressions

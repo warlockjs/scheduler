@@ -1,6 +1,6 @@
 ---
 name: observe-scheduler
-description: "Observability and lifecycle in @warlock.js/scheduler; use when you need to observe scheduler."
+description: 'Subscribe to scheduler lifecycle and job events for logging / metrics / alerting / graceful shutdown — seven typed `SchedulerEvents`, `JobResult` payload, `start()` / `stop()` / `shutdown()`. Triggers: `scheduler.on`, `scheduler.shutdown`, `JobResult`, `job:complete`, `job:error`, `scheduler:started`, `scheduler.getJob`; "graceful SIGTERM shutdown", "did this job run", "scheduler metrics and alerts", "subscribe to job events"; typical import `import { scheduler, type JobResult } from "@warlock.js/scheduler"`. Skip: retry / overlap — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; building schedules — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; native `EventEmitter`, `process.on`.'
 ---
 
 # Observability and lifecycle

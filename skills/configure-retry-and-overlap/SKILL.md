@@ -1,6 +1,6 @@
 ---
 name: configure-retry-and-overlap
-description: "Retry, backoff, and overlap in @warlock.js/scheduler; use when you need to configure retry and overlap."
+description: 'Configure `.retry(maxRetries, delay?, backoffMultiplier?)` for fixed / exponential backoff and `.preventOverlap()` for external-invocation safety. Triggers: `.retry`, `.preventOverlap`, `maxRetries`, `backoffMultiplier`, `JobResult.retries`, `job:error`, `job:skip`; "how do I retry a failed job", "exponential backoff for scheduled job", "prevent concurrent job runs", "stop firing after N consecutive failures"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: events / shutdown — `@warlock.js/scheduler/observe-scheduler/SKILL.md`; building the schedule itself — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; competing libs `p-retry`, `async-retry`, `bullmq`.'
 ---
 
 # Retry, backoff, and overlap

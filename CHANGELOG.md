@@ -4,6 +4,12 @@ All notable changes to `@warlock.js/scheduler` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). `@warlock.js/*` packages are released in lockstep — every package shares the same version number, so a version below may list only the changes that affected this package.
 
+## 5.20.0
+
+### Added
+
+- `job.onOneServer({ lockTtl?, key? })` — run each tick on exactly one server. Every server races for a create-only, TTL-bounded cache claim keyed `scheduler.<key ?? name>.<scheduledTickEpochMs>`. The claim is never released, so exactly one server runs each tick even if another server's timer fires late. Losers skip the tick and emit `job:skip`. Requires a shared cache driver (redis/pg) and a job name or `key`. `@warlock.js/cache` is an optional peer dependency. Default claim TTL is `min(interval, 1h)` with a 60s floor (1h for cron jobs).
+
 ## 5.19.0 - 2026-09-23
 
 ### Changed

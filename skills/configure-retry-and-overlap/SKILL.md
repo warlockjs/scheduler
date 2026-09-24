@@ -145,7 +145,8 @@ job("nightly-report", buildReport).daily().at("02:00").onOneServer().preventOver
 job("sync", sync).everyMinutes(5).onOneServer({ lockTtl: "10m", key: "sync-v2" });
 ```
 
-- Lock key: `scheduler.<key ?? name>.<scheduledTickEpochMs>` (scheduled tick time truncated to the second, so every server derives the same key). Losers skip the tick and the scheduler emits `job:skip`.
-- Default TTL: the job's interval capped at 1h, minimum 60s. Override with `lockTtl`.
+- Claim key: `scheduler.<key ?? name>.<scheduledTickEpochMs>` (scheduled tick time truncated to the second, so every server derives the same key). Losers skip the tick and the scheduler emits `job:skip`.
+- It is a **claim, not a lock**: a create-only, TTL-bounded cache entry that is never released, only expires. That guarantees one run per tick even if another server's timer fires late, after the winner finished.
+- Default claim TTL: `min(interval, 1h)` with a 60s floor (1h for cron jobs). Override with `lockTtl`.
 - Needs the optional `@warlock.js/cache` peer and a shared driver (redis/pg). On the memory driver it only dedupes within one process.
 - Throws at call time if the job has no name/key.

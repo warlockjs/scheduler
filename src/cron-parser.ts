@@ -68,7 +68,7 @@ export class CronParser {
       );
     }
 
-    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+    const [minute, hour, dayOfMonth, month, dayOfWeek] = parts as [string, string, string, string, string];
 
     this._isDayOfMonthRestricted = dayOfMonth.trim() !== "*";
     this._isDayOfWeekRestricted = dayOfWeek.trim() !== "*";
@@ -204,6 +204,9 @@ export class CronParser {
     }
 
     const smallestDay = this._fields.daysOfMonth[0];
+    if (smallestDay === undefined) {
+      throw new Error(`Invalid cron expression: "${this._expression}". Day-of-month has no values.`);
+    }
 
     const reachable = this._fields.months.some(
       (month) => smallestDay <= this._maxDaysInMonth(month),
@@ -251,7 +254,7 @@ export class CronParser {
 
     for (const part of parts) {
       // Handle step values (e.g., "*‍/5" or "1-10/2")
-      const [range, stepStr] = part.split("/");
+      const [range = "", stepStr] = part.split("/");
       const step = stepStr ? parseInt(stepStr, 10) : 1;
 
       if (isNaN(step) || step < 1) {
@@ -268,8 +271,8 @@ export class CronParser {
       } else if (range.includes("-")) {
         // Range (e.g., "1-5")
         const [startStr, endStr] = range.split("-");
-        rangeStart = parseInt(startStr, 10);
-        rangeEnd = parseInt(endStr, 10);
+        rangeStart = parseInt(startStr ?? "", 10);
+        rangeEnd = parseInt(endStr ?? "", 10);
 
         if (isNaN(rangeStart) || isNaN(rangeEnd)) {
           throw new Error(`Invalid range in cron field: "${field}"`);

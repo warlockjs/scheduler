@@ -62,7 +62,7 @@ function parseTimeString(time: string): {
     throw new Error("Invalid time format. Use HH:mm or HH:mm:ss.");
   }
 
-  const [hour, minute, second = 0] = time.split(":").map(Number);
+  const [hour = NaN, minute = NaN, second = 0] = time.split(":").map(Number);
 
   if (hour < 0 || hour > 23) {
     throw new Error(`Invalid hour in time "${time}". Must be between 0 and 23.`);

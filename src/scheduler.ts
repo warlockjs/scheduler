@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
-import { Job, JobCallback } from "./job";
+import { Job } from "./job";
+import type { JobCallback } from "./job";
 import type { JobResult, SchedulerEvents } from "./types";
 
 /**

@@ -44,6 +44,7 @@ export { Scheduler, scheduler } from "./scheduler";
 
 // Types
 export type { CronFields } from "./cron-parser";
+export type { JobAroundHook } from "./job";
 
 export type {
   Day,

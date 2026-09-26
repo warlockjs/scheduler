@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { Job } from "./job";
-import type { JobCallback } from "./job";
+import type { JobAroundHook, JobCallback } from "./job";
 import type { JobResult, SchedulerEvents } from "./types";
 
 /**
@@ -52,6 +52,11 @@ export class Scheduler
    * List of registered jobs
    */
   private _jobs: Job[] = [];
+
+  /**
+   * Hooks wrapping every callback execution, first registered = outermost
+   */
+  private _aroundHooks: readonly JobAroundHook[] = [];
 
   /**
    * Reference to the current timeout for stopping
@@ -123,6 +128,7 @@ export class Scheduler
    * @returns this for chaining
    */
   public addJob(job: Job): this {
+    job.bindAroundHooks(() => this._aroundHooks);
     this._jobs.push(job);
 
     if (this.isRunning) {
@@ -132,6 +138,28 @@ export class Scheduler
     this._armStartWarning();
 
     return this;
+  }
+
+  /**
+   * Wrap every job callback execution (each retry attempt included) in a hook.
+   *
+   * The first registered hook is the outermost. A hook that never calls `run`
+   * skips the execution (`job:skip` is emitted); a hook that throws is treated
+   * like a callback error.
+   *
+   * @returns Unsubscribe function
+   *
+   * @example
+   * ```typescript
+   * scheduler.around((job, run) => storage.run({ job: job.name }, run));
+   * ```
+   */
+  public around(hook: JobAroundHook): () => void {
+    this._aroundHooks = [...this._aroundHooks, hook];
+
+    return () => {
+      this._aroundHooks = this._aroundHooks.filter(item => item !== hook);
+    };
   }
 
   /**
@@ -153,6 +181,10 @@ export class Scheduler
    * @returns this for chaining
    */
   public addJobs(jobs: Job[]): this {
+    for (const job of jobs) {
+      job.bindAroundHooks(() => this._aroundHooks);
+    }
+
     this._jobs.push(...jobs);
 
     if (this.isRunning) {
@@ -436,7 +468,7 @@ export class Scheduler
     const result = await job.run();
 
     if (result.skipped) {
-      this.emit("job:skip", job.name, "Another server holds the lock");
+      this.emit("job:skip", job.name, result.skipReason ?? "Another server holds the lock");
     } else if (result.success) {
       this.emit("job:complete", job.name, result);
     } else {

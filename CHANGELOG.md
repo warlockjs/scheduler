@@ -4,6 +4,18 @@ All notable changes to `@warlock.js/scheduler` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). `@warlock.js/*` packages are released in lockstep — every package shares the same version number, so a version below may list only the changes that affected this package.
 
+## Unreleased (5.23)
+
+### Added
+
+- `scheduler.around((job, run) => …)` wraps every job callback execution, each retry attempt included, so jobs can run inside a context such as `AsyncLocalStorage`. Multiple hooks compose with the first registered outermost; the call returns an unsubscribe function. A hook that never calls `run` skips the execution and emits `job:skip` (`JobResult.skipped` / `skipReason`); a hook that throws follows the normal retry/error path.
+
+## 5.23.0 - 2026-09-25
+
+### Changed
+
+- Lockstep patch release; package APIs are unchanged.
+
 ## 5.22.1 - 2026-09-25
 
 ### Changed

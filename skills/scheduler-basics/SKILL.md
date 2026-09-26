@@ -66,6 +66,17 @@ process.on("SIGTERM", async () => {
 
 > Registering jobs alone runs nothing — you must call `scheduler.start()`. As a safety net, in development (`NODE_ENV !== "production"`) the scheduler logs a one-shot `console.warn` if jobs are registered but `start()` is never called.
 
+## Run scheduled jobs inside a context
+
+Use `scheduler.around(hook)` to wrap every callback execution — each retry attempt too — for example in an `AsyncLocalStorage` context:
+
+```ts
+scheduler.around((job, run) => storage.run({ job: job.name }, run));
+```
+
+- First registered hook is the outermost; `around` returns an unsubscribe function.
+- A hook that never calls `run` skips the execution (`job:skip`, `result.skipped`); a hook that throws is treated as a callback error (retry/error path applies).
+
 ## Pick a skill
 
 | If the task is about… | Load |

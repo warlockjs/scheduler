@@ -37,6 +37,13 @@ const UNIT_MS: Record<TimeType, number> = {
 export type JobCallback = (job: Job) => Promise<any>;
 
 /**
+ * Hook wrapping every callback execution (each retry attempt included).
+ * Not calling `run` skips the execution; throwing counts as a callback error.
+ */
+const HOOK_SKIP_REASON = "An around hook did not run the job";
+
+export type JobAroundHook = (job: Job, run: () => Promise<unknown>) => Promise<unknown>;
+/**
  * Days of week mapping (lowercase for consistency with Day type)
  */
 const DAYS_OF_WEEK: Day[] = [
@@ -117,6 +124,11 @@ export class Job {
    * Whether the job is currently executing
    */
   private _isRunning = false;
+
+  /**
+   * Supplies the owning scheduler's around hooks (set via `bindAroundHooks`).
+   */
+  private _aroundHooks: () => readonly JobAroundHook[] = () => [];
 
   /**
    * Skip execution if job is already running
@@ -688,6 +700,7 @@ export class Job {
 
     try {
       let skipped = false;
+      let skipReason: string | undefined;
 
       if (this._oneServer) {
         const lockKey = this._lockKey(scheduledAt);
@@ -706,10 +719,19 @@ export class Job {
         if (!skipped) {
           const inner = await this._executeWithRetry();
           executedRetries = inner.retries;
+          if (inner.skipped) {
+            skipped = true;
+            skipReason = HOOK_SKIP_REASON;
+          }
         }
       } else {
         const inner = await this._executeWithRetry();
         executedRetries = inner.retries;
+
+        if (inner.skipped) {
+          skipped = true;
+          skipReason = HOOK_SKIP_REASON;
+        }
       }
 
       result = {
@@ -717,6 +739,7 @@ export class Job {
         duration: Date.now() - startTime,
         retries: executedRetries,
         ...(skipped ? { skipped: true } : {}),
+        ...(skipReason ? { skipReason } : {}),
       };
     } catch (error) {
       result = {
@@ -739,6 +762,18 @@ export class Job {
     }
 
     return result;
+  }
+
+  /**
+   * Bind a provider of around hooks (called by the Scheduler on registration).
+   * A provider, not a snapshot, so later `around()` / unsubscribe calls apply.
+   *
+   * @internal
+   */
+  public bindAroundHooks(provider: () => readonly JobAroundHook[]): this {
+    this._aroundHooks = provider;
+
+    return this;
   }
 
   /**
@@ -797,14 +832,17 @@ export class Job {
   /**
    * Execute the callback with retry logic
    */
-  private async _executeWithRetry(): Promise<{ retries: number }> {
+  private async _executeWithRetry(): Promise<{ retries: number; skipped?: boolean }> {
     let lastError: unknown;
     let attempts = 0;
     const maxAttempts = (this._retryConfig?.maxRetries ?? 0) + 1;
 
     while (attempts < maxAttempts) {
       try {
-        await this._callback(this);
+        if (!(await this._invokeCallback())) {
+          return { retries: attempts, skipped: true };
+        }
+
         return { retries: attempts };
       } catch (error) {
         lastError = error;
@@ -818,6 +856,33 @@ export class Job {
     }
 
     throw lastError;
+  }
+
+  /**
+   * Run the callback inside the around hooks (first registered = outermost).
+   *
+   * @returns false when a hook never called `run` (the callback did not execute)
+   */
+  private async _invokeCallback(): Promise<boolean> {
+    let reached = false;
+
+    let chain: () => Promise<unknown> = async () => {
+      reached = true;
+      await this._callback(this);
+    };
+
+    const hooks = [...this._aroundHooks()];
+
+    for (let index = hooks.length - 1; index >= 0; index--) {
+      const hook = hooks[index]!;
+      const next = chain;
+
+      chain = () => hook(this, next);
+    }
+
+    await chain();
+
+    return reached;
   }
 
   /**

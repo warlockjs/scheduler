@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { Job } from "./job";
 import type { JobAroundHook, JobCallback } from "./job";
+import { hasWorkerRole, rolesLabel } from "./process-roles";
 import type { JobResult, SchedulerEvents } from "./types";
 
 /**
@@ -269,9 +270,20 @@ export class Scheduler
   /**
    * Start the scheduler
    *
+   * A no-op, logging one info line, on a process that does not serve the
+   * `worker` role (`WARLOCK_ROLES`) — so an app that calls this in `main.ts`
+   * doesn't run its jobs on every `web`/`api` node. With no `--role` passed,
+   * every role is on and this behaves exactly as before.
+   *
    * @throws Error if scheduler is already running
    */
   public start(): void {
+    if (!hasWorkerRole()) {
+      // eslint-disable-next-line no-console
+      console.info(`scheduler: not started (role: ${rolesLabel()})`);
+      return;
+    }
+
     if (this.isRunning) {
       throw new Error("Scheduler is already running.");
     }
@@ -338,12 +350,14 @@ export class Scheduler
    * Arm the one-shot "registered but never started" development warning.
    *
    * Called whenever a job is registered. Does nothing in production
-   * (`NODE_ENV === "production"`), once `start()` has been called, or when a
-   * check is already armed. The deferred check is unref'd so it can never keep
+   * (`NODE_ENV === "production"`), once `start()` has been called, when a
+   * check is already armed, or when this process doesn't serve the `worker`
+   * role — `start()` is never expected to be called there, so the warning
+   * would only be noise. The deferred check is unref'd so it can never keep
    * the event loop (and the process) alive on its own.
    */
   private _armStartWarning(): void {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" || !hasWorkerRole()) {
       return;
     }
 

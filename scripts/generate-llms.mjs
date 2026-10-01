@@ -47,6 +47,8 @@ const projectName =
  * no nested objects, no arrays). Strips surrounding quotes from the value.
  */
 function parseFrontmatter(text) {
+  text = text.replace(/\r\n/g, "\n");
+
   const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 
   if (!match) {

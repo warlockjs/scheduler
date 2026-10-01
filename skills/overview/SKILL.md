@@ -29,28 +29,28 @@ Six task skills cover the full surface. Most callers only need `scheduler-basics
 
 ### Foundations
 
-#### [`scheduler-basics`](@warlock.js/scheduler/scheduler-basics/SKILL.md)
+#### `scheduler-basics`
 Start here. The `job(name, fn)` factory, the `scheduler` singleton, the 2-primitive surface, UTC default, why the API is factory-first.
 
 ### Scheduling
 
-#### [`schedule-fluently`](@warlock.js/scheduler/schedule-fluently/SKILL.md)
+#### `schedule-fluently`
 Build schedules without writing cron: `.everyMinutes(N)`, `.daily().at("03:00")`, `.weekly().on("monday")`, `.monthly()`, `.beginOf("month")`, `.endOf("year")`, and friends. Reach for this 80% of the time.
 
-#### [`schedule-with-cron`](@warlock.js/scheduler/schedule-with-cron/SKILL.md)
+#### `schedule-with-cron`
 Drop down to `.cron("0 9 * * 1-5")` when the fluent API can't express it (Vixie OR semantics for DOM/DOW, complex multi-value lists). Includes `parseCron()` for previewing next-run times before deploy.
 
 ### Production concerns
 
-#### [`configure-retry-and-overlap`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md)
+#### `configure-retry-and-overlap`
 `.retry(maxRetries, delay?, backoffMultiplier?)` for fixed or exponential backoff; `.preventOverlap()` so a slow run never collides with the next tick. Reach for both anytime a job calls external services.
 
-#### [`pin-schedule-timezone`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md)
+#### `pin-schedule-timezone`
 `.inTimezone("America/New_York")` pins wall-clock fire times across DST and across servers. The default is UTC — if your job description includes "9 AM," you almost certainly want this skill.
 
 ### Observability + shutdown
 
-#### [`observe-scheduler`](@warlock.js/scheduler/observe-scheduler/SKILL.md)
+#### `observe-scheduler`
 The seven typed `SchedulerEvents` (`job:start` / `complete` / `error` / `skip`, `scheduler:started` / `stopped` / `tick`), the `JobResult` payload, `start()` / `stop()` / `shutdown()`. Wire this for logging, metrics, alerting, and graceful SIGTERM handling.
 
 ## Quick taste
@@ -92,5 +92,5 @@ process.on("SIGTERM", () => scheduler.shutdown());
 
 ## See also
 
-- [`@warlock.js/core/overview/SKILL.md`](@warlock.js/core/overview/SKILL.md) — the parent framework that scheduled jobs typically run alongside.
-- `mongez-agent-kit-authoring-skills` (load via agent-kit sync) — how this `overview/SKILL.md` becomes the front-door skill in `.claude/skills/warlock-js-scheduler-overview/`. Every cross-link above uses the `@warlock.js/scheduler/<skill>/SKILL.md` name form so it survives that flattening.
+- The `overview` topic of the `warlock-js-core` skill — the parent framework that scheduled jobs typically run alongside.
+- `mongez-agent-kit-authoring-skills` (load via agent-kit sync) — how this `overview` topic becomes the front-door skill in `.claude/skills/warlock-js-scheduler-overview/`. Every cross-link above names the topic (and the owning skill, across packages) instead of a file path so it survives that flattening.

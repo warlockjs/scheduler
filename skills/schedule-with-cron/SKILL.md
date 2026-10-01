@@ -1,6 +1,6 @@
 ---
 name: schedule-with-cron
-description: 'Write `.cron(''…'')` expressions — 5-field syntax, operators (`*` `,` `-` `/`), Vixie OR semantics for DOM / DOW, `parseCron()` preview utility. Triggers: `.cron`, `parseCron`, `CronParser`, `*/5 * * * *`, `0 9 * * 1-5`; "write a cron expression", "every weekday at 9am cron", "preview next cron run", "migrate crontab(5) entry"; typical import `import { parseCron } from "@warlock.js/scheduler"`. Skip: human-readable schedules — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; competing libs `node-cron`, `cron`, `croner`, `cronstrue`.'
+description: 'Write `.cron(''…'')` expressions — 5-field syntax, operators (`*` `,` `-` `/`), Vixie OR semantics for DOM / DOW, `parseCron()` preview utility. Triggers: `.cron`, `parseCron`, `CronParser`, `*/5 * * * *`, `0 9 * * 1-5`; "write a cron expression", "every weekday at 9am cron", "preview next cron run", "migrate crontab(5) entry"; typical import `import { parseCron } from "@warlock.js/scheduler"`. Skip: human-readable schedules — the `schedule-fluently` topic; timezone — the `pin-schedule-timezone` topic; competing libs `node-cron`, `cron`, `croner`, `cronstrue`.'
 ---
 
 # Cron expressions
@@ -115,9 +115,9 @@ Impossible expressions are rejected eagerly at construction (see Validation), so
 
 ## Timezone interaction
 
-If the job has `.inTimezone(tz)`, the cron parser receives a timezone-aware `dayjs` object — so `0 9 * * *` with `.inTimezone("Asia/Tokyo")` fires at 09:00 JST. See [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md).
+If the job has `.inTimezone(tz)`, the cron parser receives a timezone-aware `dayjs` object — so `0 9 * * *` with `.inTimezone("Asia/Tokyo")` fires at 09:00 JST. See the `pin-schedule-timezone` topic.
 
 ## See also
 
-- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — the higher-level alternative for human-readable schedules
-- [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md) — pinning a cron schedule to a wall-clock timezone
+- The `schedule-fluently` topic — the higher-level alternative for human-readable schedules
+- The `pin-schedule-timezone` topic — pinning a cron schedule to a wall-clock timezone

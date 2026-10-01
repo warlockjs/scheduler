@@ -1,6 +1,6 @@
 ---
 name: configure-retry-and-overlap
-description: 'Configure `.retry(maxRetries, delay?, backoffMultiplier?)` for fixed / exponential backoff and `.preventOverlap()` for external-invocation safety. Triggers: `.retry`, `.preventOverlap`, `maxRetries`, `backoffMultiplier`, `JobResult.retries`, `job:error`, `job:skip`; "how do I retry a failed job", "exponential backoff for scheduled job", "prevent concurrent job runs", "stop firing after N consecutive failures"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: events / shutdown — `@warlock.js/scheduler/observe-scheduler/SKILL.md`; building the schedule itself — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; competing libs `p-retry`, `async-retry`, `bullmq`.'
+description: 'Configure `.retry(maxRetries, delay?, backoffMultiplier?)` for fixed / exponential backoff and `.preventOverlap()` for external-invocation safety. Triggers: `.retry`, `.preventOverlap`, `maxRetries`, `backoffMultiplier`, `JobResult.retries`, `job:error`, `job:skip`; "how do I retry a failed job", "exponential backoff for scheduled job", "prevent concurrent job runs", "stop firing after N consecutive failures"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: events / shutdown — the `observe-scheduler` topic; building the schedule itself — the `schedule-fluently` topic; competing libs `p-retry`, `async-retry`, `bullmq`.'
 ---
 
 # Retry, backoff, and overlap
@@ -133,8 +133,8 @@ If retries push the total work past the next interval, `preventOverlap()` ensure
 
 ## See also
 
-- [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) — full event reference, `JobResult` shape, lifecycle
-- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — the scheduling methods these compose with
+- The `observe-scheduler` topic — full event reference, `JobResult` shape, lifecycle
+- The `schedule-fluently` topic — the scheduling methods these compose with
 
 ## Running on one server only: `onOneServer()`
 

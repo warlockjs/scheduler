@@ -1,6 +1,6 @@
 ---
 name: pin-schedule-timezone
-description: 'Pin a job to a specific IANA timezone via `.inTimezone(zone)` so its wall-clock fire time stays correct regardless of server location / DST. Triggers: `.inTimezone`, `America/New_York`, `Europe/Berlin`, `Asia/Tokyo`, `NODE_ICU_DATA`; "schedule job in a timezone", "DST drift on non-UTC server", "multi-region fan-out scheduling", "fire at 9am ET regardless of server"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: fluent interval methods — `@warlock.js/scheduler/schedule-fluently/SKILL.md`; cron syntax — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; competing libs `dayjs-timezone`, `luxon`, `date-fns-tz`.'
+description: 'Pin a job to a specific IANA timezone via `.inTimezone(zone)` so its wall-clock fire time stays correct regardless of server location / DST. Triggers: `.inTimezone`, `America/New_York`, `Europe/Berlin`, `Asia/Tokyo`, `NODE_ICU_DATA`; "schedule job in a timezone", "DST drift on non-UTC server", "multi-region fan-out scheduling", "fire at 9am ET regardless of server"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: fluent interval methods — the `schedule-fluently` topic; cron syntax — the `schedule-with-cron` topic; competing libs `dayjs-timezone`, `luxon`, `date-fns-tz`.'
 ---
 
 # Per-job timezones
@@ -109,6 +109,6 @@ Node ships full ICU on most platforms, so all IANA zones work out of the box. If
 
 ## See also
 
-- [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) — `at()`, `on()`, `daily()`, etc.
-- [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md) — cron schedules are timezone-aware too
-- [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) — `job.nextRun.toISOString()` always renders in UTC; format with `.tz(zone)` to see local time
+- The `schedule-fluently` topic — `at()`, `on()`, `daily()`, etc.
+- The `schedule-with-cron` topic — cron schedules are timezone-aware too
+- The `observe-scheduler` topic — `job.nextRun.toISOString()` always renders in UTC; format with `.tz(zone)` to see local time

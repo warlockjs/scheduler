@@ -29,9 +29,9 @@ npm install @warlock.js/scheduler
 The 9 things that are true in every scheduler use:
 
 1. **Factory-first.** `import { job, scheduler } from "@warlock.js/scheduler"`. Users do not call `new Job()` directly (it works, but `job()` is the documented surface).
-2. **Default timezone is UTC.** `daily().at("09:00")` fires at 09:00 UTC, regardless of the server's clock. Pin a job to wall-clock with `.inTimezone("America/New_York")`. See [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md).
-3. **The scheduler awaits each tick.** Concurrent same-job runs from the scheduler's own loop are structurally impossible. `preventOverlap()` is for jobs that ALSO get invoked outside the loop. See [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md).
-4. **Cron uses 5-field Vixie semantics.** When both `dayOfMonth` and `dayOfWeek` are restricted (neither is `*`), a date matches if EITHER constraint matches. Standard-cron compatible. See [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md).
+2. **Default timezone is UTC.** `daily().at("09:00")` fires at 09:00 UTC, regardless of the server's clock. Pin a job to wall-clock with `.inTimezone("America/New_York")`. See the `pin-schedule-timezone` topic.
+3. **The scheduler awaits each tick.** Concurrent same-job runs from the scheduler's own loop are structurally impossible. `preventOverlap()` is for jobs that ALSO get invoked outside the loop. See the `configure-retry-and-overlap` topic.
+4. **Cron uses 5-field Vixie semantics.** When both `dayOfMonth` and `dayOfWeek` are restricted (neither is `*`), a date matches if EITHER constraint matches. Standard-cron compatible. See the `schedule-with-cron` topic.
 5. **`nextRun` always advances after a run — success OR failure.** A permanently failing job re-fires on its next scheduled slot, not on every tick.
 6. **Validation throws at definition time.** `every(0)`, `at("24:00")`, `on(32)`, `retry(-1)`, malformed cron — all throw immediately when you wire the job, not at runtime.
 7. **`Job.run()` returns a `JobResult`, never throws.** Errors funnel into `result.error`. The scheduler emits `job:error` after all retries are exhausted.
@@ -81,11 +81,11 @@ scheduler.around((job, run) => storage.run({ job: job.name }, run));
 
 | If the task is about… | Load |
 | --- | --- |
-| Building schedules via `every*`/`daily`/`weekly`/`monthly`/`at`/`on`/`beginOf`/`endOf` | [`@warlock.js/scheduler/schedule-fluently/SKILL.md`](@warlock.js/scheduler/schedule-fluently/SKILL.md) |
-| Writing `.cron("…")` expressions, debugging DOM/DOW behavior, using `parseCron()` for preview | [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md) |
-| Configuring `.retry()` / exponential backoff, `.preventOverlap()`, understanding failure rescheduling | [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md) |
-| Subscribing to scheduler events, reading `JobResult`, lifecycle, graceful shutdown | [`@warlock.js/scheduler/observe-scheduler/SKILL.md`](@warlock.js/scheduler/observe-scheduler/SKILL.md) |
-| Per-job `.inTimezone()`, multi-region patterns, DST handling | [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md) |
+| Building schedules via `every*`/`daily`/`weekly`/`monthly`/`at`/`on`/`beginOf`/`endOf` | the `schedule-fluently` topic |
+| Writing `.cron("…")` expressions, debugging DOM/DOW behavior, using `parseCron()` for preview | the `schedule-with-cron` topic |
+| Configuring `.retry()` / exponential backoff, `.preventOverlap()`, understanding failure rescheduling | the `configure-retry-and-overlap` topic |
+| Subscribing to scheduler events, reading `JobResult`, lifecycle, graceful shutdown | the `observe-scheduler` topic |
+| Per-job `.inTimezone()`, multi-region patterns, DST handling | the `pin-schedule-timezone` topic |
 
 ## When NOT to use this skill
 

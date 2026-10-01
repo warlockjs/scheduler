@@ -1,6 +1,6 @@
 ---
 name: schedule-fluently
-description: 'Build a job schedule via `every*` / `daily` / `weekly` / `monthly` / `at` / `on` / `beginOf` / `endOf`. Triggers: `.everyMinutes`, `.daily`, `.weekly`, `.monthly`, `.at`, `.on`, `.every`, `.beginOf`, `.endOf`, `.twiceDaily`, `scheduler.newJob`; "run every 5 minutes", "daily at 3am", "monday standup", "first of every month", "last day of month"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: cron — `@warlock.js/scheduler/schedule-with-cron/SKILL.md`; timezone — `@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`; retry — `@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`; competing `node-cron`, `node-schedule`, `agenda`; native `setInterval`.'
+description: 'Build a job schedule via `every*` / `daily` / `weekly` / `monthly` / `at` / `on` / `beginOf` / `endOf`. Triggers: `.everyMinutes`, `.daily`, `.weekly`, `.monthly`, `.at`, `.on`, `.every`, `.beginOf`, `.endOf`, `.twiceDaily`, `scheduler.newJob`; "run every 5 minutes", "daily at 3am", "monday standup", "first of every month", "last day of month"; typical import `import { job, scheduler } from "@warlock.js/scheduler"`. Skip: cron — the `schedule-with-cron` topic; timezone — the `pin-schedule-timezone` topic; retry — the `configure-retry-and-overlap` topic; competing `node-cron`, `node-schedule`, `agenda`; native `setInterval`.'
 ---
 
 # Fluent scheduling API
@@ -84,7 +84,7 @@ Both accept `"day" | "month" | "year"`.
 
 ## Cron is an alternative, not an addition
 
-`.cron("…")` clears any prior interval/`at`/`on`/`beginOf`/`endOf` config — and vice versa. They're mutually exclusive. See [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md).
+`.cron("…")` clears any prior interval/`at`/`on`/`beginOf`/`endOf` config — and vice versa. They're mutually exclusive. See the `schedule-with-cron` topic.
 
 ## Chaining order doesn't matter (for the most part)
 
@@ -136,6 +136,6 @@ j?.cronExpression;           // null if using fluent API
 
 ## See also
 
-- [`@warlock.js/scheduler/schedule-with-cron/SKILL.md`](@warlock.js/scheduler/schedule-with-cron/SKILL.md) — when the fluent API isn't enough
-- [`@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md`](@warlock.js/scheduler/configure-retry-and-overlap/SKILL.md) — `.retry()` and `.preventOverlap()` on the same job
-- [`@warlock.js/scheduler/pin-schedule-timezone/SKILL.md`](@warlock.js/scheduler/pin-schedule-timezone/SKILL.md) — `.inTimezone()`
+- The `schedule-with-cron` topic — when the fluent API isn't enough
+- The `configure-retry-and-overlap` topic — `.retry()` and `.preventOverlap()` on the same job
+- The `pin-schedule-timezone` topic — `.inTimezone()`

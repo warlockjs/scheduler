@@ -4,6 +4,12 @@ All notable changes to `@warlock.js/scheduler` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). `@warlock.js/*` packages are released in lockstep — every package shares the same version number, so a version below may list only the changes that affected this package.
 
+## 5.28.0 - 2026-10-01
+
+### Changed
+
+- Lockstep release; package APIs are unchanged. `llms.txt` now lists every skill topic with its description (frontmatter in CRLF files was skipped).
+
 ## 5.27.0 - 2026-10-01
 
 ### Changed
